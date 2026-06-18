@@ -1,0 +1,26 @@
+# Claude Code
+CLAUDE.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Distribution / build
+dist/
+build/
+*.egg-info/
+*.zip
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# QGIS temporaires
+*.qgz~
+*.qgs~

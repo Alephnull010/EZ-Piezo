@@ -1,0 +1,17 @@
+[general]
+name=EZ Piezo
+qgisMinimumVersion=3.16
+description=Carte piézométrique par interpolation Kriging — tracé de courbes isopièzes à partir de données ponctuelles (ouvrage, X, Y, Z).
+version=1.1.0
+author=Hugo LEBEL
+email=support@example.com
+about=Plugin simplifié pour générer des cartes piézométriques (isopièzes) par interpolation Kriging (Ordinary Kriging). Importez vos données depuis un CSV ou saisissez-les manuellement, configurez le variogramme, et obtenez un raster interpolé + contours vectoriels directement dans QGIS.
+tracker=https://github.com/example/piezo-kriging/issues
+repository=https://github.com/example/piezo-kriging
+tags=piezometry,kriging,interpolation,hydrogeology,contour,isopiezes,groundwater
+homepage=https://github.com/example/piezo-kriging
+category=Analysis
+icon=icons/icon.png
+experimental=False
+deprecated=False
+changelog=1.0.0 - Version initiale
