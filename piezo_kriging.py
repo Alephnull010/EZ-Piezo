@@ -47,15 +47,15 @@ class PiezoKrigingPlugin:
         icon_path = os.path.join(self.plugin_dir, "icons", "icon.png")
         self.action = QAction(
             QIcon(icon_path) if os.path.exists(icon_path) else QIcon(),
-            "PiezoKriging",
+            "EZ Piezo",
             self.iface.mainWindow(),
         )
         self.action.triggered.connect(self.run)
         self.iface.addToolBarIcon(self.action)
-        self.iface.addPluginToMenu("&PiezoKriging", self.action)
+        self.iface.addPluginToMenu("&EZ Piezo", self.action)
 
     def unload(self):
-        self.iface.removePluginMenu("&PiezoKriging", self.action)
+        self.iface.removePluginMenu("&EZ Piezo", self.action)
         self.iface.removeToolBarIcon(self.action)
 
     # ──────────────────────── Main entry ────────────────────────────

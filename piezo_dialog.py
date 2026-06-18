@@ -27,7 +27,7 @@ class PiezoKrigingDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("PiezoKriging — Carte piézométrique par Kriging")
+        self.setWindowTitle("EZ Piezo — Carte piézométrique par Kriging")
         self.setMinimumSize(1000, 720)
         self.resize(1100, 800)
 
@@ -47,7 +47,7 @@ class PiezoKrigingDialog(QDialog):
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
 
-        title = QLabel("PiezoKriging")
+        title = QLabel("EZ Piezo")
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c5f8a;")
         subtitle = QLabel("Interpolation piézométrique par Ordinary Kriging")
         subtitle.setStyleSheet("font-size: 11px; color: #666; margin-bottom: 8px;")

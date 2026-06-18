@@ -1,5 +1,5 @@
 """
-PiezoKriging – Plugin QGIS pour cartes piézométriques par Kriging
+EZ Piezo – Plugin QGIS pour cartes piézométriques par Kriging
 """
 
 

@@ -1,4 +1,4 @@
-# PiezoKriging — Plugin QGIS
+# EZ Piezo — Plugin QGIS
 
 Plugin QGIS pour générer des **cartes piézométriques** (courbes isopièzes) par interpolation **Ordinary Kriging**, à partir de mesures ponctuelles sur ouvrages (piézomètres, forages, puits).
 
@@ -68,7 +68,7 @@ Linux   : ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/piezo_krigin
 macOS   : ~/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins/piezo_kriging/
 ```
 
-Puis : **Extensions → Gérer les extensions → Installées → cocher PiezoKriging**.
+Puis : **Extensions → Gérer les extensions → Installées → cocher EZ Piezo**.
 
 ### Depuis un ZIP
 
