@@ -494,6 +494,7 @@ class PiezoKrigingPlugin:
             decimals = max(1, int(np.ceil(-np.log10(z_range))) + 1)
         else:
             decimals = 2
+
         def fmt(v):
             return f"{v:.{decimals}f}"
 

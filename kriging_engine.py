@@ -286,10 +286,7 @@ def ordinary_kriging(
     grid_pts = np.column_stack([gx_m.ravel(), gy_m.ravel()])
     n_grid = grid_pts.shape[0]
 
-    use_search = (
-        search_params is not None
-        and not search_params.get("use_all", True)
-    )
+    use_search = search_params is not None and not search_params.get("use_all", True)
 
     if not use_search:
         # ── Block-vectorised: factorize K once, process grid in chunks ──
