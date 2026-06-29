@@ -1,5 +1,5 @@
 """
-EZ Piezo – Plugin QGIS pour cartes piézométriques par Kriging
+EZ Piezo - QGIS plugin for piezometric mapping by Kriging interpolation.
 """
 
 

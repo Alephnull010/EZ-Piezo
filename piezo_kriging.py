@@ -1,10 +1,10 @@
 """
-piezo_kriging.py — Plugin principal QGIS PiezoKriging.
+piezo_kriging.py - Main QGIS plugin entry point for EZ Piezo.
 
-Gère:
-  - Enregistrement du plugin / menu / toolbar
-  - Orchestration du calcul Kriging et de la validation croisée
-  - Création des couches QGIS (raster + contours vectoriels + points)
+Handles:
+  - Plugin registration, menu and toolbar
+  - Kriging and cross-validation orchestration
+  - QGIS layer creation (raster, vector contours, points)
 """
 
 import os
@@ -244,7 +244,7 @@ class PiezoKrigingPlugin:
                 QgsProject.instance().addMapLayer(rlayer)
                 self._style_raster(rlayer)
 
-            # Flow vectors — cache grille pour rafraîchissement dynamique
+            # Flow vectors - cache grid for dynamic refresh without re-kriging
             self._flow_cache = {
                 "Z": Z, "grid_x": grid_x, "grid_y": grid_y, "crs": crs
             }
@@ -275,7 +275,7 @@ class PiezoKrigingPlugin:
                                    n_pairs=n_pairs, model_name=model_name)
             except Exception as _cv_err:
                 import traceback as _tb
-                print(f"[PiezoKriging] Validation croisée automatique échouée : {_cv_err}")
+                print(f"[EZPiezo] Automatic cross-validation failed: {_cv_err}")
                 _tb.print_exc()
 
             # Success message
@@ -652,7 +652,7 @@ class PiezoKrigingPlugin:
             f'abs({shifted} - round({shifted} / {major_interval:.8g}) * {major_interval:.8g}) < {eps:.8g}'
         )
 
-        # ── Rule-based renderer: major (thick) vs minor (thin) ──
+        # Rule-based renderer: major (thick) vs minor (thin)
         major_sym = QgsLineSymbol.createSimple({
             'line_color': '30,80,160,255',
             'line_width': '0.65',
@@ -676,7 +676,7 @@ class PiezoKrigingPlugin:
 
         layer.setRenderer(QgsRuleBasedRenderer(root_rule))
 
-        # ── Rule-based labeling: only major contours get Z labels ──
+        # Rule-based labeling: only major contours get elevation labels
         if add_labels:
             settings = QgsPalLayerSettings()
             settings.fieldName = "ELEV"

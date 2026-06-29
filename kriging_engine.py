@@ -2,9 +2,9 @@
 kriging_engine.py — Ordinary Kriging interpolation engine.
 
 Implements:
-  - Experimental variogram (omnidirectionnel ou directionnel)
+  - Experimental variogram (omnidirectional or directional)
   - Variogram models: spherical, exponential, gaussian, linear
-  - Ordinary Kriging (vectorisé ou avec voisinage de recherche)
+  - Ordinary Kriging (vectorized, with optional elliptic search neighborhood)
   - Leave-One-Out cross-validation
   - High-level run_kriging orchestrator
 

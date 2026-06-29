@@ -1,5 +1,5 @@
 """
-piezo_dialog.py — Interface graphique Qt pour PiezoKriging.
+piezo_dialog.py - Qt dialog for EZ Piezo plugin.
 """
 
 import os
@@ -78,7 +78,7 @@ class PiezoKrigingDialog(QDialog):
         run_row.addStretch()
         main_layout.addLayout(run_row)
 
-    # ── Tab 1: Données ────────────────────────────────────────────────
+    # ── Tab 1: Data ───────────────────────────────────────────────────
 
     def _build_tab_data(self):
         tab = QWidget()
@@ -151,7 +151,7 @@ class PiezoKrigingDialog(QDialog):
 
         self.tabs.addTab(tab, "1 — Données")
 
-    # ── Tab 2: Paramètres ─────────────────────────────────────────────
+    # ── Tab 2: Parameters ─────────────────────────────────────────────
 
     def _build_tab_params(self):
         tab = QWidget()
@@ -302,7 +302,7 @@ class PiezoKrigingDialog(QDialog):
 
         layout.addWidget(grp_grid)
 
-        # ── Isopièzes ──
+        # ── Contours ──
         grp_contour = QGroupBox("Courbes isopièzes")
         gc = QHBoxLayout(grp_contour)
         self.auto_interval_check = QCheckBox("Intervalle auto")
@@ -464,7 +464,7 @@ class PiezoKrigingDialog(QDialog):
 
         self.tabs.addTab(tab, "3 — Variogramme")
 
-    # ── Tab 4: Validation croisée ─────────────────────────────────────
+    # ── Tab 4: Cross-validation ───────────────────────────────────────
 
     def _build_tab_crossval(self):
         tab = QWidget()
@@ -825,7 +825,7 @@ class PiezoKrigingDialog(QDialog):
             stats_line += f"\n⚠ {n_failed} point(s) non résolu(s) par l'ellipse de recherche (exclus des stats)"
         self.cv_stats_label.setText(stats_line)
 
-        # std_err : NaN pour les lignes invalides, valeur réelle pour les valides
+        # std_err: NaN for unresolved rows, actual value for valid ones
         with np.errstate(invalid="ignore"):
             std_err = np.where(valid, errors / np.sqrt(cv["kvar"]), np.nan)
 
