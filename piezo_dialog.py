@@ -7,16 +7,16 @@ import csv
 
 import numpy as np
 
-from qgis.PyQt.QtCore import Qt, QVariant, QSize
+from qgis.PyQt.QtCore import Qt, QSize
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
     QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
     QComboBox, QSpinBox, QDoubleSpinBox, QFileDialog,
     QMessageBox, QTabWidget, QWidget, QProgressBar,
     QHeaderView, QCheckBox, QSplitter, QFrame, QRadioButton,
-    QButtonGroup, QSizePolicy,
+    QButtonGroup,
 )
-from qgis.PyQt.QtGui import QFont, QColor, QIcon
+from qgis.PyQt.QtGui import QColor, QIcon
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -840,7 +840,7 @@ class PiezoKrigingDialog(QDialog):
             self._raw_rows = rows[1:]
         else:
             n_cols = max((len(r) for r in rows), default=4)
-            self._raw_headers = [f"col_{i+1}" for i in range(n_cols)]
+            self._raw_headers = [f"col_{i + 1}" for i in range(n_cols)]
             self._raw_rows = rows
 
         self._update_col_mapping(self._raw_headers)
@@ -874,7 +874,6 @@ class PiezoKrigingDialog(QDialog):
         if not self._raw_rows:
             return
 
-        n_cols = len(self._raw_headers)
         col_indices = []
         for i, cb in enumerate(self._col_combos):
             idx = cb.currentIndex()
@@ -948,18 +947,18 @@ class PiezoKrigingDialog(QDialog):
     def get_variogram_params(self):
         """Return dict with variogram UI state."""
         return {
-            "model":              self.model_combo.currentText(),
-            "n_lags":             self.n_lags_spin.value(),
-            "lag_size":           self.lag_size_spin.value(),    # 0 = auto
-            "min_pairs":          self.min_pairs_spin.value(),
-            "force_nugget_zero":  self.force_nugget_zero_check.isChecked(),
-            "direction":          self.direction_spin.value(),
-            "tolerance":          self.tolerance_spin.value(),
-            "manual":             self.manual_vario_check.isChecked(),
-            "nugget":             self.nugget_spin.value(),
-            "sill":               self.sill_spin.value(),
-            "range":              self.range_spin.value(),
-            "slope":              self.slope_spin.value(),
+            "model": self.model_combo.currentText(),
+            "n_lags": self.n_lags_spin.value(),
+            "lag_size": self.lag_size_spin.value(),    # 0 = auto
+            "min_pairs": self.min_pairs_spin.value(),
+            "force_nugget_zero": self.force_nugget_zero_check.isChecked(),
+            "direction": self.direction_spin.value(),
+            "tolerance": self.tolerance_spin.value(),
+            "manual": self.manual_vario_check.isChecked(),
+            "nugget": self.nugget_spin.value(),
+            "sill": self.sill_spin.value(),
+            "range": self.range_spin.value(),
+            "slope": self.slope_spin.value(),
         }
 
     def get_search_params(self):
@@ -989,16 +988,17 @@ class PiezoKrigingDialog(QDialog):
         """Return flow vector display parameters."""
         return {
             "enabled": self.flow_vectors_check.isChecked(),
-            "step_x":  self.flow_step_x_spin.value(),
-            "step_y":  self.flow_step_y_spin.value(),
+            "step_x": self.flow_step_x_spin.value(),
+            "step_y": self.flow_step_y_spin.value(),
         }
 
     # ─────────────────────────────────────
     # Variogram plot
     # ─────────────────────────────────────
 
-    def plot_variogram(self, lag_centers, gamma_exp, vario_func, params,
-                        n_pairs=None, model_name=""):
+    def plot_variogram(
+            self, lag_centers, gamma_exp, vario_func, params,
+            n_pairs=None, model_name=""):
         self.vario_figure.clear()
         ax = self.vario_figure.add_subplot(111)
 

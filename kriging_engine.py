@@ -14,7 +14,7 @@ No dependency beyond numpy / scipy (both bundled with QGIS).
 import numpy as np
 from scipy.spatial.distance import pdist, squareform, cdist
 from scipy.optimize import curve_fit
-from scipy.linalg import solve, lu_factor, lu_solve
+from scipy.linalg import lu_factor, lu_solve
 
 _KRIGING_BLOCK = 4096  # grid nodes per block (bounds peak memory for both branches)
 
@@ -28,7 +28,7 @@ def spherical(h, nugget, sill, range_):
     gamma = np.where(
         h <= range_,
         nugget + (sill - nugget) * (1.5 * h / range_ - 0.5 * (h / range_) ** 3),
-    sill,
+        sill,
     )
     gamma[h == 0] = 0.0
     return gamma
@@ -68,9 +68,10 @@ VARIOGRAM_MODELS = {
 # Experimental variogram
 # ──────────────────────────────────────────────
 
-def compute_experimental_variogram(coords, values, n_lags=15, max_lag=None,
-                                    lag_size=None, min_pairs=0,
-                                    direction=None, tolerance=90.0):
+def compute_experimental_variogram(
+        coords, values, n_lags=15, max_lag=None,
+        lag_size=None, min_pairs=0,
+        direction=None, tolerance=90.0):
     """
     Compute binned experimental semi-variogram, optionally directional.
 
@@ -251,8 +252,9 @@ def find_duplicate_coords(coords, tol=1e-3):
     return list(zip(idx_i[close].tolist(), idx_j[close].tolist()))
 
 
-def ordinary_kriging(coords, values, grid_x, grid_y, variogram_func,
-                      search_params=None):
+def ordinary_kriging(
+        coords, values, grid_x, grid_y, variogram_func,
+        search_params=None):
     """
     Ordinary Kriging on a regular grid.
 
@@ -285,8 +287,8 @@ def ordinary_kriging(coords, values, grid_x, grid_y, variogram_func,
     n_grid = grid_pts.shape[0]
 
     use_search = (
-        search_params is not None and
-        not search_params.get("use_all", True)
+        search_params is not None
+        and not search_params.get("use_all", True)
     )
 
     if not use_search:
@@ -468,10 +470,10 @@ def cross_validate_loo(coords, values, variogram_func, search_params=None):
         "kvar": kvar,
         "valid": valid,
         "n_failed": int((~valid).sum()),
-        "mean_error":     float(np.mean(ev))             if ev.size  else float("nan"),
-        "rmse":           float(np.sqrt(np.mean(ev**2))) if ev.size  else float("nan"),
-        "mean_std_error": float(np.mean(sev))            if sev.size else float("nan"),
-        "rmsse":          float(np.sqrt(np.mean(sev**2))) if sev.size else float("nan"),
+        "mean_error": float(np.mean(ev)) if ev.size else float("nan"),
+        "rmse": float(np.sqrt(np.mean(ev**2))) if ev.size else float("nan"),
+        "mean_std_error": float(np.mean(sev)) if sev.size else float("nan"),
+        "rmsse": float(np.sqrt(np.mean(sev**2))) if sev.size else float("nan"),
     }
 
 
@@ -532,10 +534,10 @@ def compute_flow_vectors(Z, grid_x, grid_y, step_x=10, step_y=10):
             if mag < 1e-10:
                 continue
             vectors.append({
-                "x":         float(grid_x[ci]),
-                "y":         float(grid_y[ri]),   # Z[ri] ↔ grid_y[ri]
-                "dx":        float(flow_x[ri, ci] / mag),
-                "dy":        float(flow_y[ri, ci] / mag),
+                "x": float(grid_x[ci]),
+                "y": float(grid_y[ri]),   # Z[ri] ↔ grid_y[ri]
+                "dx": float(flow_x[ri, ci] / mag),
+                "dy": float(flow_y[ri, ci] / mag),
                 "magnitude": mag,
             })
     return vectors

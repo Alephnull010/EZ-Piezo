@@ -16,9 +16,8 @@ from qgis.PyQt.QtWidgets import QAction, QMessageBox
 from qgis.PyQt.QtGui import QIcon, QColor, QFont
 from qgis.core import (
     QgsProject, QgsRasterLayer, QgsVectorLayer, QgsFeature,
-    QgsGeometry, QgsPointXY, QgsField, QgsFields,
-    QgsCoordinateReferenceSystem, QgsVectorFileWriter,
-    QgsWkbTypes, Qgis, QgsUnitTypes,
+    QgsGeometry, QgsPointXY, QgsField,
+    QgsCoordinateReferenceSystem, Qgis, QgsUnitTypes,
     QgsArrowSymbolLayer, QgsLineSymbol, QgsSingleSymbolRenderer,
     QgsSimpleMarkerSymbolLayer, QgsMarkerSymbol,
     QgsPalLayerSettings, QgsTextFormat, QgsTextBackgroundSettings, QgsVectorLayerSimpleLabeling,
@@ -29,7 +28,7 @@ from osgeo import gdal, osr
 
 from .piezo_dialog import PiezoKrigingDialog
 from .kriging_engine import (
-    run_kriging, VARIOGRAM_MODELS,
+    VARIOGRAM_MODELS,
     compute_experimental_variogram, fit_variogram, ordinary_kriging,
     cross_validate_loo, nice_contour_interval, find_duplicate_coords,
     compute_flow_vectors,
@@ -171,8 +170,9 @@ class PiezoKrigingPlugin:
         dlg.progress.setValue(20)
 
         # Plot variogram immediately
-        dlg.plot_variogram(lag_centers, gamma_exp, vario_func, vario_params,
-                            n_pairs=n_pairs, model_name=model_name)
+        dlg.plot_variogram(
+            lag_centers, gamma_exp, vario_func, vario_params,
+            n_pairs=n_pairs, model_name=model_name)
         dlg.tabs.setCurrentIndex(2)
         dlg.progress.setValue(30)
 
@@ -337,16 +337,18 @@ class PiezoKrigingPlugin:
             vario_func, vario_params, lag_centers, gamma_exp, n_pairs, model_name = \
                 self._build_variogram(dlg, coords, values)
 
-            dlg.plot_variogram(lag_centers, gamma_exp, vario_func, vario_params,
-                                n_pairs=n_pairs, model_name=model_name)
+            dlg.plot_variogram(
+                lag_centers, gamma_exp, vario_func, vario_params,
+                n_pairs=n_pairs, model_name=model_name)
 
             search_params = dlg.get_search_params()
             cv = cross_validate_loo(coords, values, vario_func, search_params)
             dlg.show_crossval_results(cv, names)
 
             # Update variogram tab label with LOO stats
-            dlg.plot_variogram(lag_centers, gamma_exp, vario_func, vario_params,
-                                n_pairs=n_pairs, model_name=model_name)
+            dlg.plot_variogram(
+                lag_centers, gamma_exp, vario_func, vario_params,
+                n_pairs=n_pairs, model_name=model_name)
 
         except Exception as e:
             QMessageBox.critical(dlg, "Erreur", f"Erreur lors de la validation croisée :\n\n{e}")
@@ -492,7 +494,8 @@ class PiezoKrigingPlugin:
             decimals = max(1, int(np.ceil(-np.log10(z_range))) + 1)
         else:
             decimals = 2
-        fmt = lambda v: f"{v:.{decimals}f}"
+        def fmt(v):
+            return f"{v:.{decimals}f}"
 
         shader = QgsRasterShader()
         color_ramp = QgsColorRampShader()
@@ -534,12 +537,14 @@ class PiezoKrigingPlugin:
 
         mid = (min_val + max_val) / 2.0
         decimals = max(2, int(np.ceil(-np.log10(z_range))) + 1) if z_range > 0 else 3
-        fmt = lambda v: f"{v:.{decimals}f}"
+
+        def fmt(v):
+            return f"{v:.{decimals}f}"
 
         ramp_items = [
             QgsColorRampShader.ColorRampItem(min_val, QColor(255, 255, 204), fmt(min_val)),
-            QgsColorRampShader.ColorRampItem(mid,     QColor(253, 141,  60), fmt(mid)),
-            QgsColorRampShader.ColorRampItem(max_val, QColor(128,   0,  38), fmt(max_val)),
+            QgsColorRampShader.ColorRampItem(mid, QColor(253, 141, 60), fmt(mid)),
+            QgsColorRampShader.ColorRampItem(max_val, QColor(128, 0, 38), fmt(max_val)),
         ]
         color_ramp.setColorRampItemList(ramp_items)
         shader.setRasterShaderFunction(color_ramp)
