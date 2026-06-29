@@ -1,11 +1,11 @@
 [general]
 name=EZ Piezo
 qgisMinimumVersion=3.16
-description=Carte piézométrique par interpolation Kriging. Tracer simplement de courbes isopièzes à partir de données .csv (ouvrage, X, Y, Z).
+description=Generate piezometric maps (groundwater contour lines) by Ordinary Kriging from CSV well data.
 version=1.1.0
 author=Hugo LEBEL
 email=h.lebel@hlsoftware.fr
-about=Plugin QGIS simplifié pour générer des cartes piézométriques (isopièzes) par interpolation Kriging (Ordinary Kriging). Importez vos données depuis un CSV ou saisissez-les manuellement, configurez le variogramme, et obtenez un raster interpolé + contours vectoriels directement dans QGIS.
+about=A QGIS plugin for generating piezometric maps (isopiezes) through Ordinary Kriging interpolation. Load your data from a CSV file or enter it manually, configure the variogram, and get an interpolated raster and vector contour lines directly in QGIS. Includes cross-validation (LOO), flow vectors, and major/minor contour styling.
 tracker=https://github.com/Alephnull010/EZ-Piezo/issues
 repository=https://github.com/Alephnull010/EZ-Piezo
 tags=piezometry,kriging,interpolation,hydrogeology,contour,isopiezes,groundwater
@@ -15,4 +15,5 @@ icon=icons/icon.png
 experimental=False
 deprecated=False
 license=GPL-2
-changelog=1.0.0 - Version initiale
+changelog=1.1.0 - Automatic cross-validation, flow vectors, major contour offset, label styling
+	1.0.0 - Initial release
