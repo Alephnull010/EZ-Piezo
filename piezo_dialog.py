@@ -7,7 +7,7 @@ import csv
 
 import numpy as np
 
-from qgis.PyQt.QtCore import Qt, QVariant
+from qgis.PyQt.QtCore import Qt, QVariant, QSize, QRect
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
     QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
@@ -16,10 +16,33 @@ from qgis.PyQt.QtWidgets import (
     QHeaderView, QCheckBox, QSplitter, QFrame, QRadioButton,
     QButtonGroup, QSizePolicy,
 )
-from qgis.PyQt.QtGui import QFont, QColor, QIcon
+from qgis.PyQt.QtGui import QFont, QColor, QIcon, QPixmap, QPainter
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+
+
+def _flag_icon(flag):
+    """Draw a small flag pixmap without external files.
+    flag: 'fr' (France) or 'gb' (United Kingdom).
+    """
+    w, h = 30, 20
+    pix = QPixmap(w, h)
+    painter = QPainter(pix)
+    if flag == 'fr':
+        painter.fillRect(QRect(0,  0, 10, h), QColor(0,   85, 164))
+        painter.fillRect(QRect(10, 0, 10, h), QColor(255, 255, 255))
+        painter.fillRect(QRect(20, 0, 10, h), QColor(239,  65,  53))
+    else:  # 'gb'
+        painter.fillRect(QRect(0, 0, w, h), QColor(0, 36, 125))
+        # White St George + St Andrew cross base
+        painter.fillRect(QRect(0,  7, w, 6), QColor(255, 255, 255))
+        painter.fillRect(QRect(11, 0, 8, h), QColor(255, 255, 255))
+        # Red St George cross (centred, thinner)
+        painter.fillRect(QRect(0,  8, w, 4), QColor(207, 20, 43))
+        painter.fillRect(QRect(12, 0, 6, h), QColor(207, 20, 43))
+    painter.end()
+    return QIcon(pix)
 
 
 _STRINGS = {
@@ -269,8 +292,9 @@ class PiezoKrigingDialog(QDialog):
         hdr_row.addLayout(title_col)
         hdr_row.addStretch()
         self._btn_lang = QPushButton()
-        self._btn_lang.setFixedSize(38, 28)
-        self._btn_lang.setStyleSheet("font-size: 16px; padding: 0px; border: 1px solid #ccc; border-radius: 3px;")
+        self._btn_lang.setFixedSize(40, 28)
+        self._btn_lang.setIconSize(QSize(30, 20))
+        self._btn_lang.setStyleSheet("padding: 2px; border: 1px solid #bbb; border-radius: 3px;")
         self._btn_lang.clicked.connect(self._toggle_lang)
         hdr_row.addWidget(self._btn_lang, 0, Qt.AlignTop)
         main_layout.addLayout(hdr_row)
@@ -1156,7 +1180,8 @@ class PiezoKrigingDialog(QDialog):
         self._lang = lang
         s = _STRINGS[lang]
 
-        self._btn_lang.setText(s['lang_btn'])
+        # Show the OTHER language's flag (the one you'd switch to)
+        self._btn_lang.setIcon(_flag_icon('gb' if lang == 'fr' else 'fr'))
         self.setWindowTitle(s['window_title'])
         self._subtitle_label.setText(s['subtitle'])
         self.btn_run.setText(s['btn_run'])
