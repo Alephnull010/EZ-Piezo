@@ -27,3 +27,6 @@ Thumbs.db
 
 # Release
 piezo_kriging.zip
+
+# Private NAS repository descriptor
+plugins.xml
