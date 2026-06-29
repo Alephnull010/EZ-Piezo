@@ -30,3 +30,6 @@ piezo_kriging.zip
 
 # Private NAS repository descriptor
 plugins.xml
+
+# Release script (personal tool)
+make_release.ps1
