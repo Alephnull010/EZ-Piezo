@@ -22,12 +22,219 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 
+_STRINGS = {
+    'fr': {
+        'window_title': "EZ Piezo — Carte piézométrique par Kriging",
+        'subtitle': "Interpolation piézométrique par Ordinary Kriging",
+        'tab_data': "1 — Données",
+        'tab_params': "2 — Paramètres",
+        'tab_vario': "3 — Variogramme",
+        'tab_crossval': "4 — Validation croisée",
+        'btn_run': "▶  Lancer le Kriging",
+        'lang_btn': "🇬🇧",
+        # Tab 1
+        'csv_placeholder': "Chemin vers fichier CSV …",
+        'btn_browse': "Parcourir…",
+        'lbl_sep': "Séparateur :",
+        'header_check': "Première ligne = en-tête",
+        'lbl_mapping': "Mapping :",
+        'col_labels': ["Ouvrage", "X", "Y", "Z (m)"],
+        'btn_apply_mapping': "Appliquer",
+        'table_headers': ["Ouvrage", "X", "Y", "Z (m NGF)"],
+        'btn_add': "+ Ajouter ligne",
+        'btn_del': "− Supprimer sélection",
+        'btn_clear': "Tout effacer",
+        # Tab 2 — Variogram
+        'grp_vario': "Variogramme",
+        'lbl_model': "Modèle :",
+        'lbl_nlags': "Nb lags :",
+        'lbl_lagsize': "Lag size (0=auto) :",
+        'lbl_minpairs': "Min paires/lag :",
+        'min_pairs_none': "aucun",
+        'lbl_direction': "Direction (°, depuis Est) :",
+        'lbl_tolerance': "Tolérance (°) :",
+        'direction_tooltip': "0° = Est, 90° = Nord. Ignoré si tolérance = 90°.",
+        'tolerance_tooltip': "90° = omnidirectionnel (comportement par défaut).",
+        'manual_check': "Paramètres manuels",
+        'lbl_slope': "Pente :",
+        # Tab 2 — Grid
+        'grp_grid': "Grille d'interpolation",
+        'lbl_nx': "Noeuds X :",
+        'lbl_ny': "Noeuds Y :",
+        'lbl_margin': "Marge (%) :",
+        'hull_check': "NoData hors convex hull",
+        'hull_tooltip': "Marque comme NoData les noeuds de grille en dehors de l'enveloppe convexe des points.",
+        'spacing_empty': "Espacement X : —  |  Y : —",
+        'spacing_fmt': "Espacement X : {sx}  |  Y : {sy}",
+        # Tab 2 — Contours
+        'grp_contour': "Courbes isopièzes",
+        'auto_interval': "Intervalle auto",
+        'lbl_interval': "Intervalle (m) :",
+        'add_labels': "Étiquettes sur isopièzes",
+        'lbl_major': "Principale toutes les :",
+        'major_suffix': " iso.",
+        'lbl_offset': "Décalage maîtresse :",
+        'btn_restyle': "↺ Réappliquer style isopièzes",
+        # Tab 2 — Search
+        'grp_search': "Voisinage de recherche",
+        'search_all': "Toutes les données",
+        'search_ell': "Ellipse de recherche",
+        'lbl_r1': "Rayon 1 :",
+        'lbl_r2': "Rayon 2 :",
+        'lbl_angle': "Angle (°) :",
+        'lbl_min_nb': "Min données :",
+        'lbl_max_nb': "Max données :",
+        # Tab 2 — CRS
+        'grp_crs': "Système de coordonnées",
+        'lbl_crs_hint': "(2154 = Lambert 93 · 32631 = UTM 31N · système projeté requis)",
+        # Tab 2 — Flow
+        'grp_flow': "Vecteurs de flux",
+        'flow_check': "Afficher les vecteurs de flux",
+        'lbl_step_x': "Pas X :",
+        'lbl_step_y': "Pas Y :",
+        'btn_refresh_flow': "↺ Rafraîchir les vecteurs",
+        # Tab 4
+        'btn_crossval': "⟳  Relancer validation croisée (LOO)",
+        'cv_stats_init': "Erreur moyenne : —   |   RMSE : —",
+        'cv_headers': ["#", "Mesuré", "Estimé", "Erreur", "Err. std."],
+        'cv_stats_fmt': (
+            "Erreur moyenne : {me}   |   RMSE : {rmse}"
+            "   |   Err. std. moy. : {mse}   |   RMSSE : {rmsse} (cible ≈ 1)"
+        ),
+        'cv_unresolved': "⚠ {n} point(s) non résolu(s) par l'ellipse de recherche (exclus des stats)",
+        'cv_plot_no_pts': "Validation croisée — aucun point résolu",
+        'cv_plot_title': "Validation croisée Leave-One-Out",
+        'cv_plot_excluded': "({n} point(s) exclus)",
+        'cv_ref_label': "Référence (y=x)",
+        'cv_xlabel': "Estimé (LOO)",
+        'cv_ylabel': "Mesuré",
+        # Variogram plot
+        'vario_exp_label': "Expérimental",
+        'vario_fit_label': "Modèle ajusté",
+        'vario_xlabel': "Distance h",
+        'vario_ylabel': "Semi-variance γ(h)",
+        'vario_title': "Variogramme",
+        'vario_info_linear': "Modèle : linear  |  Nugget = {nugget:.6f}  |  Pente = {slope:.8f}",
+        'vario_info_fmt': "Modèle : {model}  |  Nugget = {nugget:.6f}  |  Sill = {sill:.6f}  |  Range = {range:.4f}",
+        'vario_rmsse_target': "(cible ≈ 1)",
+        # File dialogs / messages
+        'dlg_open_csv': "Ouvrir un fichier CSV",
+        'dlg_csv_filter': "CSV (*.csv *.txt *.tsv);;Tous (*.*)",
+        'err_file_not_found': "Fichier introuvable.",
+        'err_read_title': "Erreur de lecture",
+        'import_title': "Import",
+        'import_success': "{n} ouvrages importés.",
+    },
+    'en': {
+        'window_title': "EZ Piezo — Piezometric Map by Kriging",
+        'subtitle': "Piezometric interpolation by Ordinary Kriging",
+        'tab_data': "1 — Data",
+        'tab_params': "2 — Parameters",
+        'tab_vario': "3 — Variogram",
+        'tab_crossval': "4 — Cross-validation",
+        'btn_run': "▶  Run Kriging",
+        'lang_btn': "🇫🇷",
+        # Tab 1
+        'csv_placeholder': "Path to CSV file …",
+        'btn_browse': "Browse…",
+        'lbl_sep': "Separator:",
+        'header_check': "First row = header",
+        'lbl_mapping': "Mapping:",
+        'col_labels': ["Well", "X", "Y", "Z (m)"],
+        'btn_apply_mapping': "Apply",
+        'table_headers': ["Well", "X", "Y", "Z (m NGF)"],
+        'btn_add': "+ Add row",
+        'btn_del': "− Delete selection",
+        'btn_clear': "Clear all",
+        # Tab 2 — Variogram
+        'grp_vario': "Variogram",
+        'lbl_model': "Model:",
+        'lbl_nlags': "Nb lags:",
+        'lbl_lagsize': "Lag size (0=auto):",
+        'lbl_minpairs': "Min pairs/lag:",
+        'min_pairs_none': "none",
+        'lbl_direction': "Direction (°, from East):",
+        'lbl_tolerance': "Tolerance (°):",
+        'direction_tooltip': "0° = East, 90° = North. Ignored if tolerance = 90°.",
+        'tolerance_tooltip': "90° = omnidirectional (default behaviour).",
+        'manual_check': "Manual parameters",
+        'lbl_slope': "Slope:",
+        # Tab 2 — Grid
+        'grp_grid': "Interpolation grid",
+        'lbl_nx': "X nodes:",
+        'lbl_ny': "Y nodes:",
+        'lbl_margin': "Padding (%):",
+        'hull_check': "NoData outside convex hull",
+        'hull_tooltip': "Set grid nodes outside the convex hull of input points to NoData.",
+        'spacing_empty': "Spacing X: —  |  Y: —",
+        'spacing_fmt': "Spacing X: {sx}  |  Y: {sy}",
+        # Tab 2 — Contours
+        'grp_contour': "Contour lines",
+        'auto_interval': "Auto interval",
+        'lbl_interval': "Interval (m):",
+        'add_labels': "Labels on contours",
+        'lbl_major': "Major every:",
+        'major_suffix': " lines",
+        'lbl_offset': "Major offset:",
+        'btn_restyle': "↺ Re-apply contour style",
+        # Tab 2 — Search
+        'grp_search': "Search neighborhood",
+        'search_all': "All data",
+        'search_ell': "Search ellipse",
+        'lbl_r1': "Radius 1:",
+        'lbl_r2': "Radius 2:",
+        'lbl_angle': "Angle (°):",
+        'lbl_min_nb': "Min data:",
+        'lbl_max_nb': "Max data:",
+        # Tab 2 — CRS
+        'grp_crs': "Coordinate system",
+        'lbl_crs_hint': "(2154 = Lambert 93 · 32631 = UTM 31N · projected CRS required)",
+        # Tab 2 — Flow
+        'grp_flow': "Flow vectors",
+        'flow_check': "Show flow vectors",
+        'lbl_step_x': "Step X:",
+        'lbl_step_y': "Step Y:",
+        'btn_refresh_flow': "↺ Refresh vectors",
+        # Tab 4
+        'btn_crossval': "⟳  Re-run cross-validation (LOO)",
+        'cv_stats_init': "Mean error: —   |   RMSE: —",
+        'cv_headers': ["#", "Measured", "Estimated", "Error", "Std. err."],
+        'cv_stats_fmt': (
+            "Mean error: {me}   |   RMSE: {rmse}"
+            "   |   Mean std. err.: {mse}   |   RMSSE: {rmsse} (target ≈ 1)"
+        ),
+        'cv_unresolved': "⚠ {n} point(s) unresolved by search ellipse (excluded from stats)",
+        'cv_plot_no_pts': "Cross-validation — no resolved points",
+        'cv_plot_title': "Leave-One-Out cross-validation",
+        'cv_plot_excluded': "({n} point(s) excluded)",
+        'cv_ref_label': "Reference (y=x)",
+        'cv_xlabel': "Estimated (LOO)",
+        'cv_ylabel': "Measured",
+        # Variogram plot
+        'vario_exp_label': "Experimental",
+        'vario_fit_label': "Fitted model",
+        'vario_xlabel': "Distance h",
+        'vario_ylabel': "Semi-variance γ(h)",
+        'vario_title': "Variogram",
+        'vario_info_linear': "Model: linear  |  Nugget = {nugget:.6f}  |  Slope = {slope:.8f}",
+        'vario_info_fmt': "Model: {model}  |  Nugget = {nugget:.6f}  |  Sill = {sill:.6f}  |  Range = {range:.4f}",
+        'vario_rmsse_target': "(target ≈ 1)",
+        # File dialogs / messages
+        'dlg_open_csv': "Open CSV file",
+        'dlg_csv_filter': "CSV (*.csv *.txt *.tsv);;All (*.*)",
+        'err_file_not_found': "File not found.",
+        'err_read_title': "Read error",
+        'import_title': "Import",
+        'import_success': "{n} wells imported.",
+    },
+}
+
+
 class PiezoKrigingDialog(QDialog):
     """Main dialog for PiezoKriging plugin."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("EZ Piezo — Carte piézométrique par Kriging")
         self.setMinimumSize(1000, 720)
         self.resize(1100, 800)
 
@@ -37,8 +244,10 @@ class PiezoKrigingDialog(QDialog):
         # State for LOO stats (updated after cross-validation)
         self._loo_rmse = None
         self._loo_rmsse = None
+        self._lang = 'fr'
 
         self._build_ui()
+        self._apply_language('fr')
 
     # ─────────────────────────────────────
     # UI Construction
@@ -47,12 +256,24 @@ class PiezoKrigingDialog(QDialog):
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
 
+        # Header: title/subtitle on the left, language toggle on the right
+        hdr_row = QHBoxLayout()
+        title_col = QVBoxLayout()
+        title_col.setSpacing(0)
         title = QLabel("EZ Piezo")
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c5f8a;")
-        subtitle = QLabel("Interpolation piézométrique par Ordinary Kriging")
-        subtitle.setStyleSheet("font-size: 11px; color: #666; margin-bottom: 8px;")
-        main_layout.addWidget(title)
-        main_layout.addWidget(subtitle)
+        self._subtitle_label = QLabel()
+        self._subtitle_label.setStyleSheet("font-size: 11px; color: #666; margin-bottom: 8px;")
+        title_col.addWidget(title)
+        title_col.addWidget(self._subtitle_label)
+        hdr_row.addLayout(title_col)
+        hdr_row.addStretch()
+        self._btn_lang = QPushButton()
+        self._btn_lang.setFixedSize(38, 28)
+        self._btn_lang.setStyleSheet("font-size: 16px; padding: 0px; border: 1px solid #ccc; border-radius: 3px;")
+        self._btn_lang.clicked.connect(self._toggle_lang)
+        hdr_row.addWidget(self._btn_lang, 0, Qt.AlignTop)
+        main_layout.addLayout(hdr_row)
 
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs)
@@ -67,7 +288,7 @@ class PiezoKrigingDialog(QDialog):
         main_layout.addWidget(self.progress)
 
         run_row = QHBoxLayout()
-        self.btn_run = QPushButton("▶  Lancer le Kriging")
+        self.btn_run = QPushButton()
         self.btn_run.setStyleSheet(
             "QPushButton { background-color: #2c7fb8; color: white; font-size: 14px; "
             "font-weight: bold; padding: 8px 24px; border-radius: 4px; }"
@@ -87,21 +308,21 @@ class PiezoKrigingDialog(QDialog):
         # File row
         file_row = QHBoxLayout()
         self.csv_path_edit = QLineEdit()
-        self.csv_path_edit.setPlaceholderText("Chemin vers fichier CSV …")
-        btn_browse = QPushButton("Parcourir…")
-        btn_browse.clicked.connect(self._browse_csv)
+        self._btn_browse = QPushButton()
+        self._btn_browse.clicked.connect(self._browse_csv)
         file_row.addWidget(self.csv_path_edit, 4)
-        file_row.addWidget(btn_browse, 1)
+        file_row.addWidget(self._btn_browse, 1)
         layout.addLayout(file_row)
 
         # Separator + header
         sep_row = QHBoxLayout()
-        sep_row.addWidget(QLabel("Séparateur :"))
+        self._lbl_sep = QLabel()
+        sep_row.addWidget(self._lbl_sep)
         self.sep_combo = QComboBox()
         self.sep_combo.addItems([";", ",", "TAB", "|"])
         sep_row.addWidget(self.sep_combo)
         sep_row.addSpacing(20)
-        self.header_check = QCheckBox("Première ligne = en-tête")
+        self.header_check = QCheckBox()
         self.header_check.setChecked(True)
         sep_row.addWidget(self.header_check)
         sep_row.addStretch()
@@ -111,45 +332,47 @@ class PiezoKrigingDialog(QDialog):
         self._mapping_frame = QFrame()
         self._mapping_frame.setFrameShape(QFrame.StyledPanel)
         map_layout = QHBoxLayout(self._mapping_frame)
-        map_layout.addWidget(QLabel("Mapping :"))
-        self._col_labels = ["Ouvrage", "X", "Y", "Z (m)"]
+        self._lbl_mapping = QLabel()
+        map_layout.addWidget(self._lbl_mapping)
         self._col_combos = []
-        for lbl in self._col_labels:
-            map_layout.addWidget(QLabel(f"{lbl} →"))
+        self._col_label_widgets = []
+        for _ in range(4):
+            col_lbl = QLabel()
+            self._col_label_widgets.append(col_lbl)
+            map_layout.addWidget(col_lbl)
             cb = QComboBox()
             cb.setMinimumWidth(120)
             cb.addItem("(auto)")
             self._col_combos.append(cb)
             map_layout.addWidget(cb)
-        btn_apply = QPushButton("Appliquer")
-        btn_apply.clicked.connect(self._apply_mapping)
-        map_layout.addWidget(btn_apply)
+        self._btn_apply_mapping = QPushButton()
+        self._btn_apply_mapping.clicked.connect(self._apply_mapping)
+        map_layout.addWidget(self._btn_apply_mapping)
         map_layout.addStretch()
         self._mapping_frame.setVisible(False)
         layout.addWidget(self._mapping_frame)
 
         # Data table
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Ouvrage", "X", "Y", "Z (m NGF)"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setAlternatingRowColors(True)
         layout.addWidget(self.table)
 
         # Add / remove buttons
         btn_row = QHBoxLayout()
-        btn_add = QPushButton("+ Ajouter ligne")
-        btn_add.clicked.connect(self._add_row)
-        btn_del = QPushButton("− Supprimer sélection")
-        btn_del.clicked.connect(self._delete_selected)
-        btn_clear = QPushButton("Tout effacer")
-        btn_clear.clicked.connect(self._clear_table)
-        btn_row.addWidget(btn_add)
-        btn_row.addWidget(btn_del)
-        btn_row.addWidget(btn_clear)
+        self._btn_add = QPushButton()
+        self._btn_add.clicked.connect(self._add_row)
+        self._btn_del = QPushButton()
+        self._btn_del.clicked.connect(self._delete_selected)
+        self._btn_clear = QPushButton()
+        self._btn_clear.clicked.connect(self._clear_table)
+        btn_row.addWidget(self._btn_add)
+        btn_row.addWidget(self._btn_del)
+        btn_row.addWidget(self._btn_clear)
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
-        self.tabs.addTab(tab, "1 — Données")
+        self.tabs.addTab(tab, "")
 
     # ── Tab 2: Parameters ─────────────────────────────────────────────
 
@@ -158,11 +381,12 @@ class PiezoKrigingDialog(QDialog):
         layout = QVBoxLayout(tab)
 
         # ── Variogramme ──
-        grp_vario = QGroupBox("Variogramme")
-        gv = QVBoxLayout(grp_vario)
+        self._grp_vario = QGroupBox()
+        gv = QVBoxLayout(self._grp_vario)
 
         row1 = QHBoxLayout()
-        row1.addWidget(QLabel("Modèle :"))
+        self._lbl_model = QLabel()
+        row1.addWidget(self._lbl_model)
         self.model_combo = QComboBox()
         self.model_combo.addItems(["linear", "spherical", "exponential", "gaussian"])
         self.model_combo.currentTextChanged.connect(self._on_model_changed)
@@ -171,13 +395,15 @@ class PiezoKrigingDialog(QDialog):
         self.force_nugget_zero_check.setVisible(False)  # shown only when linear is selected
         row1.addWidget(self.force_nugget_zero_check)
         row1.addSpacing(12)
-        row1.addWidget(QLabel("Nb lags :"))
+        self._lbl_nlags = QLabel()
+        row1.addWidget(self._lbl_nlags)
         self.n_lags_spin = QSpinBox()
         self.n_lags_spin.setRange(5, 100)
         self.n_lags_spin.setValue(15)
         row1.addWidget(self.n_lags_spin)
         row1.addSpacing(12)
-        row1.addWidget(QLabel("Lag size (0=auto) :"))
+        self._lbl_lagsize = QLabel()
+        row1.addWidget(self._lbl_lagsize)
         self.lag_size_spin = QDoubleSpinBox()
         self.lag_size_spin.setRange(0.0, 9999999.0)
         self.lag_size_spin.setDecimals(4)
@@ -185,7 +411,8 @@ class PiezoKrigingDialog(QDialog):
         self.lag_size_spin.setSpecialValueText("auto")
         row1.addWidget(self.lag_size_spin)
         row1.addSpacing(12)
-        row1.addWidget(QLabel("Min paires/lag :"))
+        self._lbl_minpairs = QLabel()
+        row1.addWidget(self._lbl_minpairs)
         self.min_pairs_spin = QSpinBox()
         self.min_pairs_spin.setRange(0, 100)
         self.min_pairs_spin.setValue(0)
@@ -196,27 +423,27 @@ class PiezoKrigingDialog(QDialog):
         gv.addLayout(row1)
 
         row_dir = QHBoxLayout()
-        row_dir.addWidget(QLabel("Direction (°, depuis Est) :"))
+        self._lbl_direction = QLabel()
+        row_dir.addWidget(self._lbl_direction)
         self.direction_spin = QDoubleSpinBox()
         self.direction_spin.setRange(-180.0, 180.0)
         self.direction_spin.setValue(0.0)
         self.direction_spin.setDecimals(1)
-        self.direction_spin.setToolTip("0° = Est, 90° = Nord. Ignoré si tolérance = 90°.")
         row_dir.addWidget(self.direction_spin)
         row_dir.addSpacing(12)
-        row_dir.addWidget(QLabel("Tolérance (°) :"))
+        self._lbl_tolerance = QLabel()
+        row_dir.addWidget(self._lbl_tolerance)
         self.tolerance_spin = QDoubleSpinBox()
         self.tolerance_spin.setRange(0.1, 90.0)
         self.tolerance_spin.setValue(90.0)
         self.tolerance_spin.setDecimals(1)
-        self.tolerance_spin.setToolTip("90° = omnidirectionnel (comportement par défaut).")
         row_dir.addWidget(self.tolerance_spin)
         row_dir.addStretch()
         gv.addLayout(row_dir)
 
         # Manual params row
         row_manual = QHBoxLayout()
-        self.manual_vario_check = QCheckBox("Paramètres manuels")
+        self.manual_vario_check = QCheckBox()
         self.manual_vario_check.toggled.connect(self._on_manual_toggle)
         row_manual.addWidget(self.manual_vario_check)
 
@@ -246,7 +473,7 @@ class PiezoKrigingDialog(QDialog):
         self.range_spin.setEnabled(False)
         row_manual.addWidget(self.range_spin)
 
-        self._slope_label = QLabel("Pente :")
+        self._slope_label = QLabel()
         self._slope_label.setVisible(False)
         row_manual.addWidget(self._slope_label)
         self.slope_spin = QDoubleSpinBox()
@@ -258,28 +485,31 @@ class PiezoKrigingDialog(QDialog):
         row_manual.addWidget(self.slope_spin)
 
         gv.addLayout(row_manual)
-        layout.addWidget(grp_vario)
+        layout.addWidget(self._grp_vario)
 
         # ── Grille ──
-        grp_grid = QGroupBox("Grille d'interpolation")
-        gg = QVBoxLayout(grp_grid)
+        self._grp_grid = QGroupBox()
+        gg = QVBoxLayout(self._grp_grid)
 
         row_g1 = QHBoxLayout()
-        row_g1.addWidget(QLabel("Noeuds X :"))
+        self._lbl_nx = QLabel()
+        row_g1.addWidget(self._lbl_nx)
         self.nx_spin = QSpinBox()
         self.nx_spin.setRange(10, 2000)
         self.nx_spin.setValue(100)
         self.nx_spin.valueChanged.connect(self._update_spacing_label)
         row_g1.addWidget(self.nx_spin)
         row_g1.addSpacing(12)
-        row_g1.addWidget(QLabel("Noeuds Y :"))
+        self._lbl_ny = QLabel()
+        row_g1.addWidget(self._lbl_ny)
         self.ny_spin = QSpinBox()
         self.ny_spin.setRange(10, 2000)
         self.ny_spin.setValue(100)
         self.ny_spin.valueChanged.connect(self._update_spacing_label)
         row_g1.addWidget(self.ny_spin)
         row_g1.addSpacing(12)
-        row_g1.addWidget(QLabel("Marge (%) :"))
+        self._lbl_margin = QLabel()
+        row_g1.addWidget(self._lbl_margin)
         self.pad_spin = QDoubleSpinBox()
         self.pad_spin.setRange(0.0, 50.0)
         self.pad_spin.setValue(5.0)
@@ -293,23 +523,21 @@ class PiezoKrigingDialog(QDialog):
         self._spacing_label.setStyleSheet("color: #555; font-style: italic;")
         row_g2.addWidget(self._spacing_label)
         row_g2.addStretch()
-        self.hull_check = QCheckBox("NoData hors convex hull")
-        self.hull_check.setToolTip(
-            "Marque comme NoData les noeuds de grille en dehors de l'enveloppe convexe des points."
-        )
+        self.hull_check = QCheckBox()
         row_g2.addWidget(self.hull_check)
         gg.addLayout(row_g2)
 
-        layout.addWidget(grp_grid)
+        layout.addWidget(self._grp_grid)
 
         # ── Contours ──
-        grp_contour = QGroupBox("Courbes isopièzes")
-        gc = QHBoxLayout(grp_contour)
-        self.auto_interval_check = QCheckBox("Intervalle auto")
+        self._grp_contour = QGroupBox()
+        gc = QHBoxLayout(self._grp_contour)
+        self.auto_interval_check = QCheckBox()
         self.auto_interval_check.setChecked(True)
         self.auto_interval_check.toggled.connect(self._on_auto_interval_toggle)
         gc.addWidget(self.auto_interval_check)
-        gc.addWidget(QLabel("Intervalle (m) :"))
+        self._lbl_interval = QLabel()
+        gc.addWidget(self._lbl_interval)
         self.contour_interval_spin = QDoubleSpinBox()
         self.contour_interval_spin.setRange(0.0001, 10000.0)
         self.contour_interval_spin.setValue(1.0)
@@ -317,35 +545,36 @@ class PiezoKrigingDialog(QDialog):
         self.contour_interval_spin.setEnabled(False)
         gc.addWidget(self.contour_interval_spin)
         gc.addSpacing(20)
-        self.add_labels_check = QCheckBox("Étiquettes sur isopièzes")
+        self.add_labels_check = QCheckBox()
         self.add_labels_check.setChecked(True)
         gc.addWidget(self.add_labels_check)
         gc.addSpacing(10)
-        gc.addWidget(QLabel("Principale toutes les :"))
+        self._lbl_major_nth = QLabel()
+        gc.addWidget(self._lbl_major_nth)
         self.major_nth_spin = QSpinBox()
         self.major_nth_spin.setRange(2, 20)
         self.major_nth_spin.setValue(5)
-        self.major_nth_spin.setSuffix(" iso.")
         gc.addWidget(self.major_nth_spin)
-        gc.addWidget(QLabel("Décalage maîtresse :"))
+        self._lbl_major_offset = QLabel()
+        gc.addWidget(self._lbl_major_offset)
         self.major_offset_spin = QDoubleSpinBox()
         self.major_offset_spin.setRange(-9999.0, 9999.0)
         self.major_offset_spin.setValue(0.0)
         self.major_offset_spin.setDecimals(2)
         self.major_offset_spin.setSingleStep(0.5)
         gc.addWidget(self.major_offset_spin)
-        self.btn_restyle_contours = QPushButton("↺ Réappliquer style isopièzes")
+        self.btn_restyle_contours = QPushButton()
         gc.addWidget(self.btn_restyle_contours)
         gc.addStretch()
-        layout.addWidget(grp_contour)
+        layout.addWidget(self._grp_contour)
 
         # ── Voisinage de recherche ──
-        grp_search = QGroupBox("Voisinage de recherche")
-        gs = QVBoxLayout(grp_search)
+        self._grp_search = QGroupBox()
+        gs = QVBoxLayout(self._grp_search)
 
         self._search_btn_group = QButtonGroup(self)
-        self.search_all_radio = QRadioButton("Toutes les données")
-        self.search_ell_radio = QRadioButton("Ellipse de recherche")
+        self.search_all_radio = QRadioButton()
+        self.search_ell_radio = QRadioButton()
         self.search_all_radio.setChecked(True)
         self._search_btn_group.addButton(self.search_all_radio)
         self._search_btn_group.addButton(self.search_ell_radio)
@@ -362,7 +591,8 @@ class PiezoKrigingDialog(QDialog):
         ell_layout = QHBoxLayout(self._ell_frame)
         ell_layout.setContentsMargins(0, 0, 0, 0)
 
-        ell_layout.addWidget(QLabel("Rayon 1 :"))
+        self._lbl_r1 = QLabel()
+        ell_layout.addWidget(self._lbl_r1)
         self.r1_spin = QDoubleSpinBox()
         self.r1_spin.setRange(0.001, 9999999.0)
         self.r1_spin.setDecimals(2)
@@ -370,7 +600,8 @@ class PiezoKrigingDialog(QDialog):
         ell_layout.addWidget(self.r1_spin)
 
         ell_layout.addSpacing(8)
-        ell_layout.addWidget(QLabel("Rayon 2 :"))
+        self._lbl_r2 = QLabel()
+        ell_layout.addWidget(self._lbl_r2)
         self.r2_spin = QDoubleSpinBox()
         self.r2_spin.setRange(0.001, 9999999.0)
         self.r2_spin.setDecimals(2)
@@ -378,7 +609,8 @@ class PiezoKrigingDialog(QDialog):
         ell_layout.addWidget(self.r2_spin)
 
         ell_layout.addSpacing(8)
-        ell_layout.addWidget(QLabel("Angle (°) :"))
+        self._lbl_angle = QLabel()
+        ell_layout.addWidget(self._lbl_angle)
         self.search_angle_spin = QDoubleSpinBox()
         self.search_angle_spin.setRange(-180.0, 180.0)
         self.search_angle_spin.setDecimals(1)
@@ -386,14 +618,16 @@ class PiezoKrigingDialog(QDialog):
         ell_layout.addWidget(self.search_angle_spin)
 
         ell_layout.addSpacing(8)
-        ell_layout.addWidget(QLabel("Min données :"))
+        self._lbl_min_nb = QLabel()
+        ell_layout.addWidget(self._lbl_min_nb)
         self.min_nb_spin = QSpinBox()
         self.min_nb_spin.setRange(1, 999)
         self.min_nb_spin.setValue(1)
         ell_layout.addWidget(self.min_nb_spin)
 
         ell_layout.addSpacing(8)
-        ell_layout.addWidget(QLabel("Max données :"))
+        self._lbl_max_nb = QLabel()
+        ell_layout.addWidget(self._lbl_max_nb)
         self.max_nb_spin = QSpinBox()
         self.max_nb_spin.setRange(1, 9999)
         self.max_nb_spin.setValue(20)
@@ -402,50 +636,53 @@ class PiezoKrigingDialog(QDialog):
         ell_layout.addStretch()
         self._ell_frame.setEnabled(False)
         gs.addWidget(self._ell_frame)
-        layout.addWidget(grp_search)
+        layout.addWidget(self._grp_search)
 
         # ── CRS ──
-        grp_crs = QGroupBox("Système de coordonnées")
-        gc2 = QHBoxLayout(grp_crs)
+        self._grp_crs = QGroupBox()
+        gc2 = QHBoxLayout(self._grp_crs)
         gc2.addWidget(QLabel("EPSG :"))
         self.epsg_edit = QLineEdit("2154")
         self.epsg_edit.setMaximumWidth(120)
         gc2.addWidget(self.epsg_edit)
-        gc2.addWidget(QLabel("(2154 = Lambert 93 · 32631 = UTM 31N · système projeté requis)"))
+        self._lbl_crs_hint = QLabel()
+        gc2.addWidget(self._lbl_crs_hint)
         gc2.addStretch()
-        layout.addWidget(grp_crs)
+        layout.addWidget(self._grp_crs)
 
         # ── Flow vectors ──
-        grp_flow = QGroupBox("Vecteurs de flux")
-        gf = QHBoxLayout(grp_flow)
-        self.flow_vectors_check = QCheckBox("Afficher les vecteurs de flux")
+        self._grp_flow = QGroupBox()
+        gf = QHBoxLayout(self._grp_flow)
+        self.flow_vectors_check = QCheckBox()
         self.flow_vectors_check.setChecked(True)
         gf.addWidget(self.flow_vectors_check)
         gf.addSpacing(16)
-        gf.addWidget(QLabel("Pas X :"))
+        self._lbl_step_x = QLabel()
+        gf.addWidget(self._lbl_step_x)
         self.flow_step_x_spin = QSpinBox()
         self.flow_step_x_spin.setRange(2, 100)
         self.flow_step_x_spin.setValue(20)
         self.flow_step_x_spin.setMaximumWidth(60)
         gf.addWidget(self.flow_step_x_spin)
         gf.addSpacing(8)
-        gf.addWidget(QLabel("Pas Y :"))
+        self._lbl_step_y = QLabel()
+        gf.addWidget(self._lbl_step_y)
         self.flow_step_y_spin = QSpinBox()
         self.flow_step_y_spin.setRange(2, 100)
         self.flow_step_y_spin.setValue(20)
         self.flow_step_y_spin.setMaximumWidth(60)
         gf.addWidget(self.flow_step_y_spin)
         gf.addSpacing(12)
-        self.btn_refresh_flow = QPushButton("↺ Rafraîchir les vecteurs")
+        self.btn_refresh_flow = QPushButton()
         self.btn_refresh_flow.setEnabled(False)
         gf.addWidget(self.btn_refresh_flow)
         gf.addStretch()
         self.flow_vectors_check.toggled.connect(self.flow_step_x_spin.setEnabled)
         self.flow_vectors_check.toggled.connect(self.flow_step_y_spin.setEnabled)
-        layout.addWidget(grp_flow)
+        layout.addWidget(self._grp_flow)
 
         layout.addStretch()
-        self.tabs.addTab(tab, "2 — Paramètres")
+        self.tabs.addTab(tab, "")
 
     # ── Tab 3: Variogramme ────────────────────────────────────────────
 
@@ -462,7 +699,7 @@ class PiezoKrigingDialog(QDialog):
         self.vario_info_label.setWordWrap(True)
         layout.addWidget(self.vario_info_label)
 
-        self.tabs.addTab(tab, "3 — Variogramme")
+        self.tabs.addTab(tab, "")
 
     # ── Tab 4: Cross-validation ───────────────────────────────────────
 
@@ -471,7 +708,7 @@ class PiezoKrigingDialog(QDialog):
         layout = QVBoxLayout(tab)
 
         top_row = QHBoxLayout()
-        self.btn_crossval = QPushButton("⟳  Relancer validation croisée (LOO)")
+        self.btn_crossval = QPushButton()
         self.btn_crossval.setStyleSheet(
             "QPushButton { background-color: #5a8a2c; color: white; font-size: 12px; "
             "font-weight: bold; padding: 6px 18px; border-radius: 4px; }"
@@ -479,7 +716,7 @@ class PiezoKrigingDialog(QDialog):
         )
         top_row.addWidget(self.btn_crossval)
         top_row.addSpacing(30)
-        self.cv_stats_label = QLabel("Erreur moyenne : —   |   RMSE : —")
+        self.cv_stats_label = QLabel()
         self.cv_stats_label.setStyleSheet("font-family: monospace; font-size: 12px;")
         top_row.addWidget(self.cv_stats_label)
         top_row.addStretch()
@@ -490,7 +727,6 @@ class PiezoKrigingDialog(QDialog):
 
         # Table
         self.cv_table = QTableWidget(0, 5)
-        self.cv_table.setHorizontalHeaderLabels(["#", "Mesuré", "Estimé", "Erreur", "Err. std."])
         self.cv_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.cv_table.setAlternatingRowColors(True)
         self.cv_table.setMinimumWidth(300)
@@ -503,7 +739,7 @@ class PiezoKrigingDialog(QDialog):
         splitter.setSizes([340, 460])
 
         layout.addWidget(splitter)
-        self.tabs.addTab(tab, "4 — Validation croisée")
+        self.tabs.addTab(tab, "")
 
     # ─────────────────────────────────────
     # Signal handlers
@@ -538,9 +774,10 @@ class PiezoKrigingDialog(QDialog):
         self._ell_frame.setEnabled(ell_checked)
 
     def _update_spacing_label(self):
+        s = _STRINGS[self._lang]
         _, coords, _ = self.get_data()
         if len(coords) < 2:
-            self._spacing_label.setText("Espacement X : —  |  Y : —")
+            self._spacing_label.setText(s['spacing_empty'])
             return
         xmin, ymin = coords.min(axis=0)
         xmax, ymax = coords.max(axis=0)
@@ -551,18 +788,16 @@ class PiezoKrigingDialog(QDialog):
         ny = self.ny_spin.value()
         spx = span_x / (nx - 1) if nx > 1 else 0.0
         spy = span_y / (ny - 1) if ny > 1 else 0.0
-        self._spacing_label.setText(
-            f"Espacement X : {spx:.4g}  |  Y : {spy:.4g}"
-        )
+        self._spacing_label.setText(s['spacing_fmt'].format(sx=f"{spx:.4g}", sy=f"{spy:.4g}"))
 
     # ─────────────────────────────────────
     # CSV loading + column mapping
     # ─────────────────────────────────────
 
     def _browse_csv(self):
+        s = _STRINGS[self._lang]
         path, _ = QFileDialog.getOpenFileName(
-            self, "Ouvrir un fichier CSV", "",
-            "CSV (*.csv *.txt *.tsv);;Tous (*.*)"
+            self, s['dlg_open_csv'], "", s['dlg_csv_filter']
         )
         if path:
             self.csv_path_edit.setText(path)
@@ -573,9 +808,10 @@ class PiezoKrigingDialog(QDialog):
         return "\t" if sep == "TAB" else sep
 
     def _load_csv(self):
+        s = _STRINGS[self._lang]
         path = self.csv_path_edit.text().strip()
         if not path or not os.path.isfile(path):
-            QMessageBox.warning(self, "Erreur", "Fichier introuvable.")
+            QMessageBox.warning(self, "Erreur", s['err_file_not_found'])
             return
 
         sep = self._get_separator()
@@ -586,7 +822,7 @@ class PiezoKrigingDialog(QDialog):
                 reader = csv.reader(f, delimiter=sep)
                 rows = [r for r in reader if any(c.strip() for c in r)]
         except Exception as e:
-            QMessageBox.critical(self, "Erreur de lecture", str(e))
+            QMessageBox.critical(self, s['err_read_title'], str(e))
             return
 
         if has_header and rows:
@@ -651,9 +887,10 @@ class PiezoKrigingDialog(QDialog):
                 self.table.setItem(r, c_target, QTableWidgetItem(val))
 
         self._update_spacing_label()
+        s = _STRINGS[self._lang]
         QMessageBox.information(
-            self, "Import",
-            f"{self.table.rowCount()} ouvrages importés."
+            self, s['import_title'],
+            s['import_success'].format(n=self.table.rowCount())
         )
 
     def _add_row(self):
@@ -760,18 +997,20 @@ class PiezoKrigingDialog(QDialog):
         if n_pairs is not None and len(n_pairs) > 0:
             sizes = np.clip(np.sqrt(n_pairs) * 20, 20, 200)
 
+        s = _STRINGS[self._lang]
         ax.scatter(lag_centers, gamma_exp,
                    s=sizes if sizes is not None else 50,
-                   c="#d95f02", edgecolors="k", zorder=5, label="Expérimental")
+                   c="#d95f02", edgecolors="k", zorder=5, label=s['vario_exp_label'])
 
         if len(lag_centers) > 0:
             h_fit = np.linspace(0, lag_centers.max() * 1.1, 300)
             ax.plot(h_fit, vario_func(h_fit), "-", color="#1b9e77", lw=2,
-                    label="Modèle ajusté")
+                    label=s['vario_fit_label'])
 
-        ax.set_xlabel("Distance h")
-        ax.set_ylabel("Semi-variance γ(h)")
-        ax.set_title(f"Variogramme ({model_name})" if model_name else "Variogramme")
+        ax.set_xlabel(s['vario_xlabel'])
+        ax.set_ylabel(s['vario_ylabel'])
+        title = s['vario_title']
+        ax.set_title(f"{title} ({model_name})" if model_name else title)
         ax.legend(fontsize=9)
         ax.grid(True, alpha=0.3)
         self.vario_figure.tight_layout()
@@ -779,22 +1018,18 @@ class PiezoKrigingDialog(QDialog):
 
         # Info text
         if params.get("slope") is not None:
-            info = (
-                f"Modèle : linear  |  "
-                f"Nugget (micro-var) = {params['nugget']:.6f}  |  "
-                f"Pente = {params['slope']:.8f}"
+            info = s['vario_info_linear'].format(
+                nugget=params['nugget'], slope=params['slope']
             )
         else:
-            info = (
-                f"Modèle : {model_name}  |  "
-                f"Nugget (micro-var) = {params['nugget']:.6f}  |  "
-                f"Sill = {params['sill']:.6f}  |  "
-                f"Range = {params['range']:.4f}"
+            info = s['vario_info_fmt'].format(
+                model=model_name, nugget=params['nugget'],
+                sill=params['sill'], range=params['range']
             )
         if self._loo_rmse is not None:
             info += f"\nLOO RMSE = {self._loo_rmse:.6f}"
             if self._loo_rmsse is not None:
-                info += f"   |   RMSSE = {self._loo_rmsse:.4f} (cible ≈ 1)"
+                info += f"   |   RMSSE = {self._loo_rmsse:.4f} {s['vario_rmsse_target']}"
         self.vario_info_label.setText(info)
 
     # ─────────────────────────────────────
@@ -812,17 +1047,19 @@ class PiezoKrigingDialog(QDialog):
         self._loo_rmse = cv["rmse"]
         self._loo_rmsse = cv["rmsse"]
 
+        s = _STRINGS[self._lang]
+
         def _fmt_stat(v, fmt):
             return "N/A" if not np.isfinite(v) else fmt.format(v)
 
-        stats_line = (
-            f"Erreur moyenne : {_fmt_stat(cv['mean_error'], '{:+.4f}')}"
-            f"   |   RMSE : {_fmt_stat(cv['rmse'], '{:.4f}')}"
-            f"   |   Err. std. moy. : {_fmt_stat(cv['mean_std_error'], '{:+.4f}')}"
-            f"   |   RMSSE : {_fmt_stat(cv['rmsse'], '{:.4f}')} (cible ≈ 1)"
+        stats_line = s['cv_stats_fmt'].format(
+            me=_fmt_stat(cv['mean_error'], '{:+.4f}'),
+            rmse=_fmt_stat(cv['rmse'], '{:.4f}'),
+            mse=_fmt_stat(cv['mean_std_error'], '{:+.4f}'),
+            rmsse=_fmt_stat(cv['rmsse'], '{:.4f}'),
         )
         if n_failed:
-            stats_line += f"\n⚠ {n_failed} point(s) non résolu(s) par l'ellipse de recherche (exclus des stats)"
+            stats_line += "\n" + s['cv_unresolved'].format(n=n_failed)
         self.cv_stats_label.setText(stats_line)
 
         # std_err: NaN for unresolved rows, actual value for valid ones
@@ -863,7 +1100,7 @@ class PiezoKrigingDialog(QDialog):
         est_v = estimated[valid]
 
         if meas_v.size == 0:
-            ax.set_title("Validation croisée — aucun point résolu")
+            ax.set_title(s['cv_plot_no_pts'])
             self.cv_figure.tight_layout()
             self.cv_canvas.draw()
             self.tabs.setCurrentIndex(3)
@@ -874,7 +1111,7 @@ class PiezoKrigingDialog(QDialog):
         margin = max((hi - lo) * 0.05, 1e-6)
         lim = (lo - margin, hi + margin)
 
-        ax.plot(lim, lim, "--", color="#888", lw=1, label="Référence (y=x)")
+        ax.plot(lim, lim, "--", color="#888", lw=1, label=s['cv_ref_label'])
 
         if meas_v.size >= 2:
             slope_bf, intercept_bf = np.polyfit(est_v, meas_v, 1)
@@ -894,12 +1131,12 @@ class PiezoKrigingDialog(QDialog):
 
         ax.set_xlim(lim)
         ax.set_ylim(lim)
-        ax.set_xlabel("Estimé (LOO)")
-        ax.set_ylabel("Mesuré")
-        title = "Validation croisée Leave-One-Out"
+        ax.set_xlabel(s['cv_xlabel'])
+        ax.set_ylabel(s['cv_ylabel'])
+        cv_title = s['cv_plot_title']
         if n_failed:
-            title += f" ({n_failed} point(s) exclus)"
-        ax.set_title(title)
+            cv_title += " " + s['cv_plot_excluded'].format(n=n_failed)
+        ax.set_title(cv_title)
         ax.legend(fontsize=9)
         ax.grid(True, alpha=0.3)
         ax.set_aspect("equal", adjustable="box")
@@ -907,3 +1144,98 @@ class PiezoKrigingDialog(QDialog):
         self.cv_canvas.draw()
 
         self.tabs.setCurrentIndex(3)
+
+    # ─────────────────────────────────────
+    # Language toggle
+    # ─────────────────────────────────────
+
+    def _toggle_lang(self):
+        self._apply_language('en' if self._lang == 'fr' else 'fr')
+
+    def _apply_language(self, lang):
+        self._lang = lang
+        s = _STRINGS[lang]
+
+        self._btn_lang.setText(s['lang_btn'])
+        self.setWindowTitle(s['window_title'])
+        self._subtitle_label.setText(s['subtitle'])
+        self.btn_run.setText(s['btn_run'])
+
+        self.tabs.setTabText(0, s['tab_data'])
+        self.tabs.setTabText(1, s['tab_params'])
+        self.tabs.setTabText(2, s['tab_vario'])
+        self.tabs.setTabText(3, s['tab_crossval'])
+
+        # Tab 1
+        self.csv_path_edit.setPlaceholderText(s['csv_placeholder'])
+        self._btn_browse.setText(s['btn_browse'])
+        self._lbl_sep.setText(s['lbl_sep'])
+        self.header_check.setText(s['header_check'])
+        self._lbl_mapping.setText(s['lbl_mapping'])
+        for widget, col_lbl in zip(self._col_label_widgets, s['col_labels']):
+            widget.setText(f"{col_lbl} →")
+        self._btn_apply_mapping.setText(s['btn_apply_mapping'])
+        self.table.setHorizontalHeaderLabels(s['table_headers'])
+        self._btn_add.setText(s['btn_add'])
+        self._btn_del.setText(s['btn_del'])
+        self._btn_clear.setText(s['btn_clear'])
+
+        # Tab 2 — Variogram
+        self._grp_vario.setTitle(s['grp_vario'])
+        self._lbl_model.setText(s['lbl_model'])
+        self._lbl_nlags.setText(s['lbl_nlags'])
+        self._lbl_lagsize.setText(s['lbl_lagsize'])
+        self._lbl_minpairs.setText(s['lbl_minpairs'])
+        self.min_pairs_spin.setSpecialValueText(s['min_pairs_none'])
+        self._lbl_direction.setText(s['lbl_direction'])
+        self._lbl_tolerance.setText(s['lbl_tolerance'])
+        self.direction_spin.setToolTip(s['direction_tooltip'])
+        self.tolerance_spin.setToolTip(s['tolerance_tooltip'])
+        self.manual_vario_check.setText(s['manual_check'])
+        self._slope_label.setText(s['lbl_slope'])
+
+        # Tab 2 — Grid
+        self._grp_grid.setTitle(s['grp_grid'])
+        self._lbl_nx.setText(s['lbl_nx'])
+        self._lbl_ny.setText(s['lbl_ny'])
+        self._lbl_margin.setText(s['lbl_margin'])
+        self.hull_check.setText(s['hull_check'])
+        self.hull_check.setToolTip(s['hull_tooltip'])
+        self._update_spacing_label()
+
+        # Tab 2 — Contours
+        self._grp_contour.setTitle(s['grp_contour'])
+        self.auto_interval_check.setText(s['auto_interval'])
+        self._lbl_interval.setText(s['lbl_interval'])
+        self.add_labels_check.setText(s['add_labels'])
+        self._lbl_major_nth.setText(s['lbl_major'])
+        self.major_nth_spin.setSuffix(s['major_suffix'])
+        self._lbl_major_offset.setText(s['lbl_offset'])
+        self.btn_restyle_contours.setText(s['btn_restyle'])
+
+        # Tab 2 — Search
+        self._grp_search.setTitle(s['grp_search'])
+        self.search_all_radio.setText(s['search_all'])
+        self.search_ell_radio.setText(s['search_ell'])
+        self._lbl_r1.setText(s['lbl_r1'])
+        self._lbl_r2.setText(s['lbl_r2'])
+        self._lbl_angle.setText(s['lbl_angle'])
+        self._lbl_min_nb.setText(s['lbl_min_nb'])
+        self._lbl_max_nb.setText(s['lbl_max_nb'])
+
+        # Tab 2 — CRS
+        self._grp_crs.setTitle(s['grp_crs'])
+        self._lbl_crs_hint.setText(s['lbl_crs_hint'])
+
+        # Tab 2 — Flow
+        self._grp_flow.setTitle(s['grp_flow'])
+        self.flow_vectors_check.setText(s['flow_check'])
+        self._lbl_step_x.setText(s['lbl_step_x'])
+        self._lbl_step_y.setText(s['lbl_step_y'])
+        self.btn_refresh_flow.setText(s['btn_refresh_flow'])
+
+        # Tab 4
+        self.btn_crossval.setText(s['btn_crossval'])
+        self.cv_table.setHorizontalHeaderLabels(s['cv_headers'])
+        if self._loo_rmse is None:
+            self.cv_stats_label.setText(s['cv_stats_init'])
