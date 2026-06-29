@@ -7,7 +7,7 @@ import csv
 
 import numpy as np
 
-from qgis.PyQt.QtCore import Qt, QVariant, QSize, QRect
+from qgis.PyQt.QtCore import Qt, QVariant, QSize
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
     QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
@@ -16,33 +16,18 @@ from qgis.PyQt.QtWidgets import (
     QHeaderView, QCheckBox, QSplitter, QFrame, QRadioButton,
     QButtonGroup, QSizePolicy,
 )
-from qgis.PyQt.QtGui import QFont, QColor, QIcon, QPixmap, QPainter
+from qgis.PyQt.QtGui import QFont, QColor, QIcon
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 
 def _flag_icon(flag):
-    """Draw a small flag pixmap without external files.
-    flag: 'fr' (France) or 'gb' (United Kingdom).
+    """Load a flag icon from the plugin's icons/ directory.
+    flag: 'fr' or 'gb'.
     """
-    w, h = 30, 20
-    pix = QPixmap(w, h)
-    painter = QPainter(pix)
-    if flag == 'fr':
-        painter.fillRect(QRect(0,  0, 10, h), QColor(0,   85, 164))
-        painter.fillRect(QRect(10, 0, 10, h), QColor(255, 255, 255))
-        painter.fillRect(QRect(20, 0, 10, h), QColor(239,  65,  53))
-    else:  # 'gb'
-        painter.fillRect(QRect(0, 0, w, h), QColor(0, 36, 125))
-        # White St George + St Andrew cross base
-        painter.fillRect(QRect(0,  7, w, 6), QColor(255, 255, 255))
-        painter.fillRect(QRect(11, 0, 8, h), QColor(255, 255, 255))
-        # Red St George cross (centred, thinner)
-        painter.fillRect(QRect(0,  8, w, 4), QColor(207, 20, 43))
-        painter.fillRect(QRect(12, 0, 6, h), QColor(207, 20, 43))
-    painter.end()
-    return QIcon(pix)
+    path = os.path.join(os.path.dirname(__file__), 'icons', f'{flag}.png')
+    return QIcon(path)
 
 
 _STRINGS = {
