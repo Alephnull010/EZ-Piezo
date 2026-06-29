@@ -456,7 +456,7 @@ def cross_validate_loo(coords, values, variogram_func, search_params=None):
             estimated[i] = z_val
             kvar[i] = v_val
 
-    errors = values - estimated
+    errors = estimated - values
     valid = np.isfinite(estimated) & np.isfinite(kvar)
     ev = errors[valid]
     sev = ev / np.sqrt(kvar[valid])
