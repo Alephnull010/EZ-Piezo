@@ -14,4 +14,5 @@ category=Analysis
 icon=icons/icon.png
 experimental=False
 deprecated=False
+license=GPL-2
 changelog=1.0.0 - Version initiale
