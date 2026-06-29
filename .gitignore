@@ -24,3 +24,6 @@ Thumbs.db
 # QGIS temporaires
 *.qgz~
 *.qgs~
+
+# Release
+piezo_kriging.zip

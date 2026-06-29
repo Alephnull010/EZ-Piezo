@@ -32,11 +32,12 @@ Plugin QGIS pour générer des **cartes piézométriques** (courbes isopièzes) 
 |---|---|---|
 | Piézométrie — Kriging | GeoTIFF | Carte des niveaux interpolés, rampe bleue→rouge |
 | Incertitude — Kriging (σ) | GeoTIFF | Écart-type de krigeage, rampe jaune→bordeaux |
-| Isopièzes | GPKG | Courbes de niveau vectorielles avec champ ELEV, étiquettes optionnelles |
+| Isopièzes | GPKG | Courbes de niveau vectorielles avec isopièzes maîtresses (épaisseur × 3, étiquettes Z) et secondaires (fines, sans étiquette) |
 | Points ouvrages | Couche mémoire | Points d'entrée avec attributs ouvrage/x/y/z_ngf |
 
 - Masque NoData hors enveloppe convexe des données (option)
 - Intervalle isopièzes automatique (règle des nombres ronds) ou manuel
+- Isopièzes maîtresses (toutes les N courbes, réglable 2–20, défaut 5) : tracé épais (0,65 mm) + étiquette Z ; isopièzes secondaires : trait fin (0,22 mm), sans étiquette
 - `gdal.ContourGenerate` appelé avec `useNoData=1, noDataValue=-9999` : pas de contours parasites en bordure
 
 ### Validation croisée (LOO)

@@ -90,11 +90,8 @@ class PiezoKrigingDialog(QDialog):
         self.csv_path_edit.setPlaceholderText("Chemin vers fichier CSV …")
         btn_browse = QPushButton("Parcourir…")
         btn_browse.clicked.connect(self._browse_csv)
-        btn_load = QPushButton("Charger CSV")
-        btn_load.clicked.connect(self._load_csv)
         file_row.addWidget(self.csv_path_edit, 4)
         file_row.addWidget(btn_browse, 1)
-        file_row.addWidget(btn_load, 1)
         layout.addLayout(file_row)
 
         # Separator + header
@@ -167,9 +164,12 @@ class PiezoKrigingDialog(QDialog):
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("Modèle :"))
         self.model_combo = QComboBox()
-        self.model_combo.addItems(["spherical", "exponential", "gaussian", "linear"])
+        self.model_combo.addItems(["linear", "spherical", "exponential", "gaussian"])
         self.model_combo.currentTextChanged.connect(self._on_model_changed)
         row1.addWidget(self.model_combo)
+        self.force_nugget_zero_check = QCheckBox("Nugget = 0")
+        self.force_nugget_zero_check.setVisible(False)  # shown only when linear is selected
+        row1.addWidget(self.force_nugget_zero_check)
         row1.addSpacing(12)
         row1.addWidget(QLabel("Nb lags :"))
         self.n_lags_spin = QSpinBox()
@@ -184,6 +184,14 @@ class PiezoKrigingDialog(QDialog):
         self.lag_size_spin.setValue(0.0)
         self.lag_size_spin.setSpecialValueText("auto")
         row1.addWidget(self.lag_size_spin)
+        row1.addSpacing(12)
+        row1.addWidget(QLabel("Min paires/lag :"))
+        self.min_pairs_spin = QSpinBox()
+        self.min_pairs_spin.setRange(0, 100)
+        self.min_pairs_spin.setValue(0)
+        self.min_pairs_spin.setMaximumWidth(60)
+        self.min_pairs_spin.setSpecialValueText("aucun")
+        row1.addWidget(self.min_pairs_spin)
         row1.addStretch()
         gv.addLayout(row1)
 
@@ -312,6 +320,22 @@ class PiezoKrigingDialog(QDialog):
         self.add_labels_check = QCheckBox("Étiquettes sur isopièzes")
         self.add_labels_check.setChecked(True)
         gc.addWidget(self.add_labels_check)
+        gc.addSpacing(10)
+        gc.addWidget(QLabel("Principale toutes les :"))
+        self.major_nth_spin = QSpinBox()
+        self.major_nth_spin.setRange(2, 20)
+        self.major_nth_spin.setValue(5)
+        self.major_nth_spin.setSuffix(" iso.")
+        gc.addWidget(self.major_nth_spin)
+        gc.addWidget(QLabel("Décalage maîtresse :"))
+        self.major_offset_spin = QDoubleSpinBox()
+        self.major_offset_spin.setRange(-9999.0, 9999.0)
+        self.major_offset_spin.setValue(0.0)
+        self.major_offset_spin.setDecimals(2)
+        self.major_offset_spin.setSingleStep(0.5)
+        gc.addWidget(self.major_offset_spin)
+        self.btn_restyle_contours = QPushButton("↺ Réappliquer style isopièzes")
+        gc.addWidget(self.btn_restyle_contours)
         gc.addStretch()
         layout.addWidget(grp_contour)
 
@@ -391,6 +415,35 @@ class PiezoKrigingDialog(QDialog):
         gc2.addStretch()
         layout.addWidget(grp_crs)
 
+        # ── Flow vectors ──
+        grp_flow = QGroupBox("Vecteurs de flux")
+        gf = QHBoxLayout(grp_flow)
+        self.flow_vectors_check = QCheckBox("Afficher les vecteurs de flux")
+        self.flow_vectors_check.setChecked(True)
+        gf.addWidget(self.flow_vectors_check)
+        gf.addSpacing(16)
+        gf.addWidget(QLabel("Pas X :"))
+        self.flow_step_x_spin = QSpinBox()
+        self.flow_step_x_spin.setRange(2, 100)
+        self.flow_step_x_spin.setValue(20)
+        self.flow_step_x_spin.setMaximumWidth(60)
+        gf.addWidget(self.flow_step_x_spin)
+        gf.addSpacing(8)
+        gf.addWidget(QLabel("Pas Y :"))
+        self.flow_step_y_spin = QSpinBox()
+        self.flow_step_y_spin.setRange(2, 100)
+        self.flow_step_y_spin.setValue(20)
+        self.flow_step_y_spin.setMaximumWidth(60)
+        gf.addWidget(self.flow_step_y_spin)
+        gf.addSpacing(12)
+        self.btn_refresh_flow = QPushButton("↺ Rafraîchir les vecteurs")
+        self.btn_refresh_flow.setEnabled(False)
+        gf.addWidget(self.btn_refresh_flow)
+        gf.addStretch()
+        self.flow_vectors_check.toggled.connect(self.flow_step_x_spin.setEnabled)
+        self.flow_vectors_check.toggled.connect(self.flow_step_y_spin.setEnabled)
+        layout.addWidget(grp_flow)
+
         layout.addStretch()
         self.tabs.addTab(tab, "2 — Paramètres")
 
@@ -418,7 +471,7 @@ class PiezoKrigingDialog(QDialog):
         layout = QVBoxLayout(tab)
 
         top_row = QHBoxLayout()
-        self.btn_crossval = QPushButton("⟳  Lancer validation croisée (LOO)")
+        self.btn_crossval = QPushButton("⟳  Relancer validation croisée (LOO)")
         self.btn_crossval.setStyleSheet(
             "QPushButton { background-color: #5a8a2c; color: white; font-size: 12px; "
             "font-weight: bold; padding: 6px 18px; border-radius: 4px; }"
@@ -459,6 +512,7 @@ class PiezoKrigingDialog(QDialog):
     def _on_model_changed(self, model_name):
         is_linear = model_name == "linear"
         manual = self.manual_vario_check.isChecked()
+        self.force_nugget_zero_check.setVisible(is_linear)
         self._sill_label.setVisible(not is_linear)
         self.sill_spin.setVisible(not is_linear)
         self._range_label.setVisible(not is_linear)
@@ -512,6 +566,7 @@ class PiezoKrigingDialog(QDialog):
         )
         if path:
             self.csv_path_edit.setText(path)
+            self._load_csv()
 
     def _get_separator(self):
         sep = self.sep_combo.currentText()
@@ -647,16 +702,18 @@ class PiezoKrigingDialog(QDialog):
     def get_variogram_params(self):
         """Return dict with variogram UI state."""
         return {
-            "model": self.model_combo.currentText(),
-            "n_lags": self.n_lags_spin.value(),
-            "lag_size": self.lag_size_spin.value(),  # 0 = auto
-            "direction": self.direction_spin.value(),
-            "tolerance": self.tolerance_spin.value(),
-            "manual": self.manual_vario_check.isChecked(),
-            "nugget": self.nugget_spin.value(),
-            "sill": self.sill_spin.value(),
-            "range": self.range_spin.value(),
-            "slope": self.slope_spin.value(),
+            "model":              self.model_combo.currentText(),
+            "n_lags":             self.n_lags_spin.value(),
+            "lag_size":           self.lag_size_spin.value(),    # 0 = auto
+            "min_pairs":          self.min_pairs_spin.value(),
+            "force_nugget_zero":  self.force_nugget_zero_check.isChecked(),
+            "direction":          self.direction_spin.value(),
+            "tolerance":          self.tolerance_spin.value(),
+            "manual":             self.manual_vario_check.isChecked(),
+            "nugget":             self.nugget_spin.value(),
+            "sill":               self.sill_spin.value(),
+            "range":              self.range_spin.value(),
+            "slope":              self.slope_spin.value(),
         }
 
     def get_search_params(self):
@@ -673,12 +730,22 @@ class PiezoKrigingDialog(QDialog):
         }
 
     def get_contour_params(self):
-        """Return (auto_interval, interval_value, add_labels)."""
+        """Return (auto_interval, interval_value, add_labels, major_nth, major_offset)."""
         return (
             self.auto_interval_check.isChecked(),
             self.contour_interval_spin.value(),
             self.add_labels_check.isChecked(),
+            self.major_nth_spin.value(),
+            self.major_offset_spin.value(),
         )
+
+    def get_flow_params(self):
+        """Return flow vector display parameters."""
+        return {
+            "enabled": self.flow_vectors_check.isChecked(),
+            "step_x":  self.flow_step_x_spin.value(),
+            "step_y":  self.flow_step_y_spin.value(),
+        }
 
     # ─────────────────────────────────────
     # Variogram plot

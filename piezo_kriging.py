@@ -19,6 +19,9 @@ from qgis.core import (
     QgsGeometry, QgsPointXY, QgsField, QgsFields,
     QgsCoordinateReferenceSystem, QgsVectorFileWriter,
     QgsWkbTypes, Qgis, QgsUnitTypes,
+    QgsArrowSymbolLayer, QgsLineSymbol, QgsSingleSymbolRenderer,
+    QgsSimpleMarkerSymbolLayer, QgsMarkerSymbol,
+    QgsPalLayerSettings, QgsTextFormat, QgsTextBackgroundSettings, QgsVectorLayerSimpleLabeling,
 )
 from qgis.PyQt.QtCore import QVariant
 
@@ -29,6 +32,7 @@ from .kriging_engine import (
     run_kriging, VARIOGRAM_MODELS,
     compute_experimental_variogram, fit_variogram, ordinary_kriging,
     cross_validate_loo, nice_contour_interval, find_duplicate_coords,
+    compute_flow_vectors,
 )
 
 
@@ -40,6 +44,7 @@ class PiezoKrigingPlugin:
         self.plugin_dir = os.path.dirname(__file__)
         self.action = None
         self.dlg = None
+        self._flow_cache = None  # {Z, grid_x, grid_y, crs} — updated after each kriging run
 
     # ──────────────────────── Plugin lifecycle ──────────────────────
 
@@ -64,6 +69,8 @@ class PiezoKrigingPlugin:
         self.dlg = PiezoKrigingDialog(self.iface.mainWindow())
         self.dlg.btn_run.clicked.connect(self._execute_kriging)
         self.dlg.btn_crossval.clicked.connect(self._execute_crossval)
+        self.dlg.btn_refresh_flow.clicked.connect(self._refresh_flow_vectors)
+        self.dlg.btn_restyle_contours.clicked.connect(self._restyle_contours)
         self.dlg.show()
 
     # ──────────────────────── Shared: build variogram ───────────────
@@ -85,6 +92,7 @@ class PiezoKrigingPlugin:
             coords, values,
             n_lags=n_lags,
             lag_size=lag_size,
+            min_pairs=vp["min_pairs"],
             direction=direction if tolerance < 90.0 else None,
             tolerance=tolerance,
         )
@@ -106,7 +114,10 @@ class PiezoKrigingPlugin:
                 def vario_func(h):
                     return m(np.asarray(h, dtype=float), nugget, sill, range_)
         else:
-            vario_params, vario_func = fit_variogram(lag_centers, gamma_exp, model_name, n_pairs)
+            vario_params, vario_func = fit_variogram(
+                lag_centers, gamma_exp, model_name, n_pairs,
+                force_nugget_zero=vp["force_nugget_zero"],
+            )
 
         return vario_func, vario_params, lag_centers, gamma_exp, n_pairs, model_name
 
@@ -167,7 +178,7 @@ class PiezoKrigingPlugin:
 
         nx, ny, pad_pct, nodata_hull = dlg.get_grid_params()
         search_params = dlg.get_search_params()
-        auto_interval, manual_interval, add_labels = dlg.get_contour_params()
+        auto_interval, manual_interval, add_labels, major_nth, major_offset = dlg.get_contour_params()
 
         try:
             # Build grid
@@ -225,26 +236,21 @@ class PiezoKrigingPlugin:
             raster_path = os.path.join(tmp_dir, "piezo_kriging.tif")
             self._write_raster(raster_path, result, epsg)
 
-            sigma_path = os.path.join(tmp_dir, "piezo_kriging_sigma.tif")
-            sigma_result = {
-                "grid_x": grid_x,
-                "grid_y": grid_y,
-                "Z": np.sqrt(np.maximum(variance, 0.0)),
-            }
-            self._write_raster(sigma_path, sigma_result, epsg)
             dlg.progress.setValue(75)
 
-            rlayer = QgsRasterLayer(raster_path, "Piézométrie — Kriging")
+            rlayer = QgsRasterLayer(raster_path, "Kriging")
             if rlayer.isValid():
                 rlayer.setCrs(crs)
                 QgsProject.instance().addMapLayer(rlayer)
                 self._style_raster(rlayer)
 
-            sigma_layer = QgsRasterLayer(sigma_path, "Incertitude — Kriging (σ)")
-            if sigma_layer.isValid():
-                sigma_layer.setCrs(crs)
-                QgsProject.instance().addMapLayer(sigma_layer)
-                self._style_sigma_raster(sigma_layer)
+            # Flow vectors — cache grille pour rafraîchissement dynamique
+            self._flow_cache = {
+                "Z": Z, "grid_x": grid_x, "grid_y": grid_y, "crs": crs
+            }
+            dlg.btn_refresh_flow.setEnabled(True)
+            if dlg.get_flow_params()["enabled"]:
+                self._refresh_flow_vectors()
 
             dlg.progress.setValue(83)
 
@@ -255,11 +261,22 @@ class PiezoKrigingPlugin:
             if vlayer_contour.isValid():
                 vlayer_contour.setCrs(crs)
                 QgsProject.instance().addMapLayer(vlayer_contour)
-                self._style_contours(vlayer_contour, add_labels)
+                self._style_contours(vlayer_contour, add_labels, contour_interval, major_nth, major_offset)
 
             dlg.progress.setValue(92)
             self._create_points_layer(names, coords, values, crs)
             dlg.progress.setValue(100)
+
+            # Auto cross-validation
+            try:
+                cv = cross_validate_loo(coords, values, vario_func, search_params)
+                dlg.show_crossval_results(cv, names)
+                dlg.plot_variogram(lag_centers, gamma_exp, vario_func, vario_params,
+                                   n_pairs=n_pairs, model_name=model_name)
+            except Exception as _cv_err:
+                import traceback as _tb
+                print(f"[PiezoKriging] Validation croisée automatique échouée : {_cv_err}")
+                _tb.print_exc()
 
             # Success message
             if vario_params.get("slope") is not None:
@@ -270,6 +287,7 @@ class PiezoKrigingPlugin:
                              f"Sill={vario_params['sill']:.4f}  "
                              f"Range={vario_params['range']:.2f}")
 
+            flow_line = "  - Flux\n" if dlg.get_flow_params()["enabled"] else ""
             QMessageBox.information(
                 dlg, "Succès",
                 f"Kriging terminé !\n\n"
@@ -279,10 +297,10 @@ class PiezoKrigingPlugin:
                 f"• Intervalle isopièzes : {contour_interval:.4g} m\n"
                 f"• {len(values)} ouvrages interpolés\n\n"
                 f"Couches créées :\n"
-                f"  – Piézométrie — Kriging (Z)\n"
-                f"  – Incertitude — Kriging (σ)\n"
-                f"  – Isopièzes\n"
-                f"  – Points ouvrages"
+                f"  - Kriging\n"
+                f"{flow_line}"
+                f"  - Isopièzes\n"
+                f"  - Ouvrages"
             )
 
         except Exception as e:
@@ -394,7 +412,7 @@ class PiezoKrigingPlugin:
 
     @staticmethod
     def _create_points_layer(names, coords, values, crs):
-        vlayer = QgsVectorLayer("Point?crs=" + crs.authid(), "Ouvrages piézo", "memory")
+        vlayer = QgsVectorLayer("Point?crs=" + crs.authid(), "Ouvrages", "memory")
         pr = vlayer.dataProvider()
         pr.addAttributes([
             QgsField("ouvrage", QVariant.String),
@@ -413,6 +431,47 @@ class PiezoKrigingPlugin:
         pr.addFeatures(features)
         vlayer.updateExtents()
         QgsProject.instance().addMapLayer(vlayer)
+        PiezoKrigingPlugin._style_points_layer(vlayer)
+
+    @staticmethod
+    def _style_points_layer(layer):
+        marker_sl = QgsSimpleMarkerSymbolLayer()
+        marker_sl.setShape(QgsSimpleMarkerSymbolLayer.Cross)
+        marker_sl.setSize(5.0)
+        marker_sl.setColor(QColor(0, 0, 0))
+        marker_sl.setStrokeColor(QColor(0, 0, 0))
+        marker_sl.setStrokeWidth(0.7)
+        symbol = QgsMarkerSymbol([marker_sl])
+        layer.setRenderer(QgsSingleSymbolRenderer(symbol))
+
+        settings = QgsPalLayerSettings()
+        settings.fieldName = "ouvrage"
+        settings.enabled = True
+        # Qgis.LabelPlacement introduced in QGIS 3.26; fallback for 3.16
+        if hasattr(Qgis, "LabelPlacement"):
+            settings.placement = Qgis.LabelPlacement.OverPoint
+        else:
+            settings.placement = 0  # OverPoint
+        settings.quadOffset = QgsPalLayerSettings.QuadrantAboveRight
+        settings.xOffset = 3.0
+        settings.yOffset = -2.0
+
+        bg = QgsTextBackgroundSettings()
+        bg.setEnabled(True)
+        bg.setType(QgsTextBackgroundSettings.ShapeRectangle)
+        bg.setFillColor(QColor(255, 255, 255))
+        bg.setStrokeColor(QColor(255, 255, 255))
+        bg.setOpacity(1.0)
+
+        tf = QgsTextFormat()
+        tf.setFont(QFont("Arial", 8))
+        tf.setSize(8)
+        tf.setBackground(bg)
+        settings.setFormat(tf)
+
+        layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
+        layer.setLabelsEnabled(True)
+        layer.triggerRepaint()
 
     # ──────────────────────── Styling ──────────────────────────────
 
@@ -489,17 +548,135 @@ class PiezoKrigingPlugin:
         layer.setRenderer(renderer)
         layer.triggerRepaint()
 
-    @staticmethod
-    def _style_contours(layer, add_labels=True):
-        from qgis.core import (
-            QgsPalLayerSettings, QgsVectorLayerSimpleLabeling,
-            QgsTextFormat, QgsTextBufferSettings,
+    def _refresh_flow_vectors(self):
+        """Regenerate the flow vectors layer from cached grid data (no re-kriging)."""
+        if self._flow_cache is None or self.dlg is None:
+            return
+        flow_params = self.dlg.get_flow_params()
+        if not flow_params["enabled"]:
+            return
+
+        cache = self._flow_cache
+        vectors = compute_flow_vectors(
+            cache["Z"], cache["grid_x"], cache["grid_y"],
+            step_x=flow_params["step_x"],
+            step_y=flow_params["step_y"],
         )
-        symbol = layer.renderer().symbol()
-        symbol.setColor(QColor(30, 80, 160))
-        symbol.setWidth(0.4)
+
+        for lyr in QgsProject.instance().mapLayersByName("Flux"):
+            QgsProject.instance().removeMapLayer(lyr.id())
+
+        if vectors:
+            flow_layer = self._create_flow_vectors_layer(
+                vectors, cache["crs"],
+                flow_params["step_x"], flow_params["step_y"],
+                cache["grid_x"], cache["grid_y"],
+            )
+            if flow_layer.isValid():
+                flow_layer.setCrs(cache["crs"])
+                QgsProject.instance().addMapLayer(flow_layer)
+                self._style_flow_vectors(flow_layer)
+
+    @staticmethod
+    def _create_flow_vectors_layer(vectors, crs, step_x, step_y, grid_x, grid_y):
+        """Build an in-memory LineString layer of normalised flow arrows."""
+        vlayer = QgsVectorLayer(
+            f"LineString?crs={crs.authid()}", "Flux", "memory"
+        )
+        pr = vlayer.dataProvider()
+        pr.addAttributes([
+            QgsField("magnitude", QVariant.Double),
+            QgsField("angle_deg", QVariant.Double),
+        ])
+        vlayer.updateFields()
+
+        nx = len(grid_x)
+        ny = len(grid_y)
+        dx_sp = (grid_x[-1] - grid_x[0]) / max(nx - 1, 1)
+        dy_sp = (grid_y[-1] - grid_y[0]) / max(ny - 1, 1)
+        scale = min(step_x * dx_sp, step_y * dy_sp) * 0.2
+
+        features = []
+        for v in vectors:
+            x0, y0 = v["x"], v["y"]
+            x1 = x0 + v["dx"] * scale
+            y1 = y0 + v["dy"] * scale
+            angle = float(np.degrees(np.arctan2(v["dy"], v["dx"])))
+            f = QgsFeature()
+            f.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x0, y0), QgsPointXY(x1, y1)]))
+            f.setAttributes([v["magnitude"], angle])
+            features.append(f)
+
+        pr.addFeatures(features)
+        vlayer.updateExtents()
+        return vlayer
+
+    @staticmethod
+    def _style_flow_vectors(layer):
+        """Style flow vector layer as filled rectangle-shaft + triangle-head arrows."""
+        arrow_sl = QgsArrowSymbolLayer()
+        arrow_sl.setIsCurved(False)
+        arrow_sl.setIsRepeated(False)
+        arrow_sl.setArrowWidth(1.4)      # mm — shaft width (rectangle)
+        arrow_sl.setHeadLength(2.8)      # mm — triangle length
+        arrow_sl.setHeadThickness(2.2)   # mm — triangle base width
+        arrow_sl.setColor(QColor(0, 0, 0))
+        arrow_sl.setFillColor(QColor(0, 0, 0))
+        symbol = QgsLineSymbol([arrow_sl])
+        layer.setRenderer(QgsSingleSymbolRenderer(symbol))
         layer.triggerRepaint()
 
+    def _restyle_contours(self):
+        layers = QgsProject.instance().mapLayersByName("Isopièzes")
+        if not layers:
+            QMessageBox.warning(self.dlg, "Couche introuvable",
+                                "Aucune couche 'Isopièzes' trouvée dans le projet.")
+            return
+        _, contour_interval, add_labels, major_nth, major_offset = self.dlg.get_contour_params()
+        for lyr in layers:
+            self._style_contours(lyr, add_labels, contour_interval, major_nth, major_offset)
+            lyr.triggerRepaint()
+
+    @staticmethod
+    def _style_contours(layer, add_labels=True, contour_interval=1.0, major_nth=5, major_offset=0.0):
+        from qgis.core import (
+            QgsPalLayerSettings, QgsTextFormat, QgsTextBufferSettings,
+            QgsRuleBasedRenderer, QgsRuleBasedLabeling,
+            QgsLineSymbol,
+        )
+
+        major_interval = contour_interval * major_nth
+        eps = major_interval * 0.001
+        shifted = f'("ELEV" - {major_offset:.8g})'
+        major_expr = (
+            f'abs({shifted} - round({shifted} / {major_interval:.8g}) * {major_interval:.8g}) < {eps:.8g}'
+        )
+
+        # ── Rule-based renderer: major (thick) vs minor (thin) ──
+        major_sym = QgsLineSymbol.createSimple({
+            'line_color': '30,80,160,255',
+            'line_width': '0.65',
+        })
+        minor_sym = QgsLineSymbol.createSimple({
+            'line_color': '30,80,160,160',
+            'line_width': '0.22',
+        })
+
+        major_rule = QgsRuleBasedRenderer.Rule(major_sym)
+        major_rule.setFilterExpression(major_expr)
+        major_rule.setLabel("Isopièze principale")
+
+        minor_rule = QgsRuleBasedRenderer.Rule(minor_sym)
+        minor_rule.setFilterExpression(f'NOT ({major_expr})')
+        minor_rule.setLabel("Isopièze secondaire")
+
+        root_rule = QgsRuleBasedRenderer.Rule(None)
+        root_rule.appendChild(major_rule)
+        root_rule.appendChild(minor_rule)
+
+        layer.setRenderer(QgsRuleBasedRenderer(root_rule))
+
+        # ── Rule-based labeling: only major contours get Z labels ──
         if add_labels:
             settings = QgsPalLayerSettings()
             settings.fieldName = "ELEV"
@@ -516,7 +693,14 @@ class PiezoKrigingPlugin:
             fmt.setBuffer(buf)
             settings.setFormat(fmt)
 
-            labeling = QgsVectorLayerSimpleLabeling(settings)
-            layer.setLabeling(labeling)
+            label_rule = QgsRuleBasedLabeling.Rule(settings)
+            label_rule.setFilterExpression(major_expr)
+            label_rule.setActive(True)
+
+            root_label = QgsRuleBasedLabeling.Rule(None)
+            root_label.appendChild(label_rule)
+
+            layer.setLabeling(QgsRuleBasedLabeling(root_label))
             layer.setLabelsEnabled(True)
-            layer.triggerRepaint()
+
+        layer.triggerRepaint()

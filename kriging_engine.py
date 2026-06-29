@@ -28,7 +28,7 @@ def spherical(h, nugget, sill, range_):
     gamma = np.where(
         h <= range_,
         nugget + (sill - nugget) * (1.5 * h / range_ - 0.5 * (h / range_) ** 3),
-        sill,
+    sill,
     )
     gamma[h == 0] = 0.0
     return gamma
@@ -69,7 +69,8 @@ VARIOGRAM_MODELS = {
 # ──────────────────────────────────────────────
 
 def compute_experimental_variogram(coords, values, n_lags=15, max_lag=None,
-                                    lag_size=None, direction=None, tolerance=90.0):
+                                    lag_size=None, min_pairs=0,
+                                    direction=None, tolerance=90.0):
     """
     Compute binned experimental semi-variogram, optionally directional.
 
@@ -77,9 +78,10 @@ def compute_experimental_variogram(coords, values, n_lags=15, max_lag=None,
     ----------
     coords     : (N, 2) — X, Y positions
     values     : (N,)  — measured values
-    n_lags     : int   — number of lag bins (used if lag_size is None)
-    max_lag    : float — max lag distance (auto = 60 % of max dist)
-    lag_size   : float — explicit bin width; overrides n_lags when set
+    n_lags     : int   — number of lag bins
+    max_lag    : float — max lag distance (auto = 50 % of max dist); ignored when lag_size is set
+    lag_size   : float — explicit bin width; when set, max range = lag_size × n_lags (Surfer convention)
+    min_pairs  : int   — discard lags with fewer than this many pairs (0 = keep all non-empty)
     direction  : float — azimuth in degrees (0 = East); None = omnidirectional
     tolerance  : float — half-angle tolerance in degrees (90 = omnidirectional)
 
@@ -111,12 +113,13 @@ def compute_experimental_variogram(coords, values, n_lags=15, max_lag=None,
     if len(dists) == 0:
         return np.array([]), np.array([]), np.array([], dtype=int)
 
-    if max_lag is None:
-        max_lag = 0.6 * dists.max()
-
     if lag_size is not None and lag_size > 0:
-        bins = np.arange(0.0, max_lag + lag_size, lag_size)
+        # Surfer convention: range is fully determined by step × count
+        max_lag_eff = lag_size * n_lags
+        bins = np.arange(0.0, max_lag_eff + lag_size, lag_size)
     else:
+        if max_lag is None:
+            max_lag = 0.5 * dists.max()
         bins = np.linspace(0.0, max_lag, n_lags + 1)
 
     n_bins = len(bins) - 1
@@ -131,7 +134,7 @@ def compute_experimental_variogram(coords, values, n_lags=15, max_lag=None,
             gamma[k] = 0.5 * sq_diffs[in_bin].mean()
             n_pairs[k] = cnt
 
-    valid = n_pairs > 0
+    valid = n_pairs >= max(min_pairs, 1)
     return lag_centers[valid], gamma[valid], n_pairs[valid]
 
 
@@ -139,7 +142,8 @@ def compute_experimental_variogram(coords, values, n_lags=15, max_lag=None,
 # Variogram fitting
 # ──────────────────────────────────────────────
 
-def fit_variogram(lag_centers, gamma, model_name="spherical", n_pairs=None):
+def fit_variogram(lag_centers, gamma, model_name="spherical", n_pairs=None,
+                  force_nugget_zero=False):
     """
     Fit a theoretical variogram to the experimental values.
 
@@ -171,14 +175,33 @@ def fit_variogram(lag_centers, gamma, model_name="spherical", n_pairs=None):
     if model_name == "linear":
         h_range = lag_centers.max() - lag_centers.min()
         slope_est = (gamma.max() - gamma.min()) / (h_range if h_range > 0 else 1.0)
-        p0 = [nugget_est, max(slope_est, 1e-10)]
-        bounds = ([0.0, 1e-10], [sill_est * 3, sill_est * 10 / (lag_centers.max() or 1.0)])
-        try:
-            popt, _ = curve_fit(linear, lag_centers, gamma, p0=p0, bounds=bounds,
-                                sigma=sigma, absolute_sigma=False, maxfev=5000)
-        except RuntimeError:
-            popt = p0
-        nugget, slope = float(popt[0]), float(popt[1])
+        slope_bound_hi = sill_est * 10 / (lag_centers.max() or 1.0)
+
+        if force_nugget_zero:
+            def _linear_zero_nugget(h, slope):
+                return linear(np.asarray(h), 0.0, slope)
+            try:
+                popt, _ = curve_fit(
+                    _linear_zero_nugget, lag_centers, gamma,
+                    p0=[max(slope_est, 1e-10)],
+                    bounds=([1e-10], [slope_bound_hi]),
+                    sigma=sigma, absolute_sigma=False, maxfev=5000,
+                )
+            except RuntimeError:
+                popt = [max(slope_est, 1e-10)]
+            nugget, slope = 0.0, float(popt[0])
+        else:
+            try:
+                popt, _ = curve_fit(
+                    linear, lag_centers, gamma,
+                    p0=[nugget_est, max(slope_est, 1e-10)],
+                    bounds=([0.0, 1e-10], [sill_est * 3, slope_bound_hi]),
+                    sigma=sigma, absolute_sigma=False, maxfev=5000,
+                )
+            except RuntimeError:
+                popt = [nugget_est, max(slope_est, 1e-10)]
+            nugget, slope = float(popt[0]), float(popt[1])
+
         params = {"nugget": nugget, "sill": None, "range": None, "slope": slope}
 
         def fitted(h):
@@ -450,6 +473,72 @@ def cross_validate_loo(coords, values, variogram_func, search_params=None):
         "mean_std_error": float(np.mean(sev))            if sev.size else float("nan"),
         "rmsse":          float(np.sqrt(np.mean(sev**2))) if sev.size else float("nan"),
     }
+
+
+# ──────────────────────────────────────────────
+# Flow vectors
+# ──────────────────────────────────────────────
+
+def compute_flow_vectors(Z, grid_x, grid_y, step_x=10, step_y=10):
+    """
+    Compute downsampled groundwater flow vectors from the kriged head grid.
+    Flow direction = -∇Z (direction of decreasing hydraulic head).
+
+    Parameters
+    ----------
+    Z        : (ny, nx) array — kriged head.
+               Z[i, j] corresponds to (grid_x[j], grid_y[i]),
+               with grid_y[0] = ymin (south) and grid_y[ny-1] = ymax (north).
+    grid_x   : (nx,) 1-D array of X coordinates (increasing eastward)
+    grid_y   : (ny,) 1-D array of Y coordinates (increasing northward)
+    step_x   : sampling interval in grid nodes along X
+    step_y   : sampling interval in grid nodes along Y
+
+    Returns
+    -------
+    list of dicts {x, y, dx, dy, magnitude}
+      dx, dy    : unit-normalised flow vector components
+      magnitude : hydraulic gradient |∇Z| in m/m
+    """
+    Z = np.asarray(Z, dtype=float)
+    ny, nx = Z.shape
+    if ny < 2 or nx < 2:
+        return []
+
+    dy_sp = (grid_y[-1] - grid_y[0]) / max(ny - 1, 1)
+    dx_sp = (grid_x[-1] - grid_x[0]) / max(nx - 1, 1)
+
+    # Z[i] corresponds to grid_y[i] which increases northward (same direction as Y).
+    # np.gradient(Z, dy_sp, dx_sp) gives dZ/d(northward) and dZ/d(eastward) directly.
+    dZ_drow, dZ_dcol = np.gradient(Z, dy_sp, dx_sp)
+    dZ_dy = dZ_drow    # rows increase northward → no sign correction needed
+    dZ_dx = dZ_dcol
+
+    # Flow = -∇Z (toward lower head)
+    flow_x = -dZ_dx
+    flow_y = -dZ_dy
+    magnitude = np.sqrt(flow_x ** 2 + flow_y ** 2)
+
+    # Subsample on a regular node grid; centred offset avoids boundary artefacts
+    row_idx = np.arange(step_y // 2, ny, step_y)
+    col_idx = np.arange(step_x // 2, nx, step_x)
+
+    vectors = []
+    for ri in row_idx:
+        for ci in col_idx:
+            if np.isnan(Z[ri, ci]):
+                continue
+            mag = float(magnitude[ri, ci])
+            if mag < 1e-10:
+                continue
+            vectors.append({
+                "x":         float(grid_x[ci]),
+                "y":         float(grid_y[ri]),   # Z[ri] ↔ grid_y[ri]
+                "dx":        float(flow_x[ri, ci] / mag),
+                "dy":        float(flow_y[ri, ci] / mag),
+                "magnitude": mag,
+            })
+    return vectors
 
 
 # ──────────────────────────────────────────────
