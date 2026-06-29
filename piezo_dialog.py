@@ -877,25 +877,25 @@ class PiezoKrigingDialog(QDialog):
         ax.plot(lim, lim, "--", color="#888", lw=1, label="Référence (y=x)")
 
         if meas_v.size >= 2:
-            slope_bf, intercept_bf = np.polyfit(meas_v, est_v, 1)
+            slope_bf, intercept_bf = np.polyfit(est_v, meas_v, 1)
             x_bf = np.array(lim)
             ax.plot(x_bf, slope_bf * x_bf + intercept_bf,
                     "-", color="#d62728", lw=1.5, alpha=0.8,
                     label=f"Best fit (a={slope_bf:.3f})")
 
-        ax.scatter(meas_v, est_v, c="#1f77b4", edgecolors="k", s=60, zorder=5)
+        ax.scatter(est_v, meas_v, c="#1f77b4", edgecolors="k", s=60, zorder=5)
 
         valid_indices = np.where(valid)[0]
         for vi, i in enumerate(valid_indices):
             lbl = names[i] if i < len(names) else str(i + 1)
-            ax.annotate(lbl, (meas_v[vi], est_v[vi]),
+            ax.annotate(lbl, (est_v[vi], meas_v[vi]),
                         fontsize=7, ha="left", va="bottom",
                         xytext=(3, 3), textcoords="offset points")
 
         ax.set_xlim(lim)
         ax.set_ylim(lim)
-        ax.set_xlabel("Mesuré")
-        ax.set_ylabel("Estimé (LOO)")
+        ax.set_xlabel("Estimé (LOO)")
+        ax.set_ylabel("Mesuré")
         title = "Validation croisée Leave-One-Out"
         if n_failed:
             title += f" ({n_failed} point(s) exclus)"
