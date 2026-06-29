@@ -1166,7 +1166,7 @@ class PiezoKrigingDialog(QDialog):
         s = _STRINGS[lang]
 
         # Show the OTHER language's flag (the one you'd switch to)
-        self._btn_lang.setIcon(_flag_icon('gb' if lang == 'fr' else 'fr'))
+        self._btn_lang.setIcon(_flag_icon('uk' if lang == 'fr' else 'fr'))
         self.setWindowTitle(s['window_title'])
         self._subtitle_label.setText(s['subtitle'])
         self.btn_run.setText(s['btn_run'])
