@@ -826,12 +826,20 @@ class PiezoKrigingDialog(QDialog):
         sep = self._get_separator()
         has_header = self.header_check.isChecked()
 
-        try:
-            with open(path, "r", encoding="utf-8-sig") as f:
-                reader = csv.reader(f, delimiter=sep)
-                rows = [r for r in reader if any(c.strip() for c in r)]
-        except Exception as e:
-            QMessageBox.critical(self, s['err_read_title'], str(e))
+        for encoding in ("utf-8-sig", "cp1252", "latin-1"):
+            try:
+                with open(path, "r", encoding=encoding) as f:
+                    reader = csv.reader(f, delimiter=sep)
+                    rows = [r for r in reader if any(c.strip() for c in r)]
+                break
+            except UnicodeDecodeError:
+                continue
+            except Exception as e:
+                QMessageBox.critical(self, s['err_read_title'], str(e))
+                return
+        else:
+            QMessageBox.critical(self, s['err_read_title'],
+                                 "Encodage du fichier non reconnu (UTF-8, Windows-1252 et Latin-1 échoués).")
             return
 
         if has_header and rows:
@@ -883,10 +891,12 @@ class PiezoKrigingDialog(QDialog):
                 col_indices.append(idx - 1)  # -1 to skip "(auto)"
 
         self.table.setRowCount(0)
+        n_skipped = 0
         for row in self._raw_rows:
             if not any(c.strip() for c in row):
                 continue
             if not all(ci < len(row) for ci in col_indices):
+                n_skipped += 1
                 continue
             r = self.table.rowCount()
             self.table.insertRow(r)
@@ -896,10 +906,19 @@ class PiezoKrigingDialog(QDialog):
 
         self._update_spacing_label()
         s = _STRINGS[self._lang]
-        QMessageBox.information(
-            self, s['import_title'],
-            s['import_success'].format(n=self.table.rowCount())
-        )
+        n_imported = self.table.rowCount()
+        if n_imported == 0 and n_skipped > 0:
+            QMessageBox.warning(
+                self, s['err_read_title'],
+                f"Aucune ligne importée : {n_skipped} ligne(s) ignorée(s) car le fichier "
+                f"contient moins de colonnes que le mapping attendu.\n\n"
+                f"Vérifiez le séparateur et le mapping des colonnes."
+            )
+        else:
+            msg = s['import_success'].format(n=n_imported)
+            if n_skipped:
+                msg += f"\n({n_skipped} ligne(s) ignorée(s) — colonnes manquantes)"
+            QMessageBox.information(self, s['import_title'], msg)
 
     def _add_row(self):
         r = self.table.rowCount()
@@ -1039,6 +1058,8 @@ class PiezoKrigingDialog(QDialog):
             info += f"\nLOO RMSE = {self._loo_rmse:.6f}"
             if self._loo_rmsse is not None:
                 info += f"   |   RMSSE = {self._loo_rmsse:.4f} {s['vario_rmsse_target']}"
+        if params.get("fit_failed"):
+            info += "\n⚠ Ajustement du variogramme non convergé — paramètres initiaux utilisés."
         self.vario_info_label.setText(info)
 
     # ─────────────────────────────────────

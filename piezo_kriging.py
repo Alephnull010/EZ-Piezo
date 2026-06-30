@@ -8,6 +8,7 @@ Handles:
 """
 
 import os
+import shutil
 import tempfile
 
 import numpy as np
@@ -21,6 +22,7 @@ from qgis.core import (
     QgsArrowSymbolLayer, QgsLineSymbol, QgsSingleSymbolRenderer,
     QgsSimpleMarkerSymbolLayer, QgsMarkerSymbol,
     QgsPalLayerSettings, QgsTextFormat, QgsTextBackgroundSettings, QgsVectorLayerSimpleLabeling,
+    QgsTask, QgsApplication,
 )
 from qgis.PyQt.QtCore import QVariant
 
@@ -35,6 +37,265 @@ from .kriging_engine import (
 )
 
 
+class _KrigingTask(QgsTask):
+    """
+    Background task: ordinary_kriging + file writing + LOO cross-validation.
+    run()     → worker thread  (no Qt UI calls allowed)
+    finished() → main thread   (safe to touch QGIS layers and dialog)
+    """
+
+    def __init__(self, plugin, dlg, names, coords, values,
+                 vario_func, vario_params, lag_centers, gamma_exp, n_pairs, model_name,
+                 grid_x, grid_y, nodata_hull, search_params,
+                 epsg, crs, auto_interval, manual_interval,
+                 add_labels, major_nth, major_offset):
+        super().__init__("EZ Piezo — Kriging", QgsTask.CanCancel)
+        self._plugin = plugin
+        self._dlg = dlg
+        self.names = names
+        self.coords = coords
+        self.values = values
+        self.vario_func = vario_func
+        self.vario_params = vario_params
+        self.lag_centers = lag_centers
+        self.gamma_exp = gamma_exp
+        self.n_pairs = n_pairs
+        self.model_name = model_name
+        self.grid_x = grid_x
+        self.grid_y = grid_y
+        self.nodata_hull = nodata_hull
+        self.search_params = search_params
+        self.epsg = epsg
+        self.crs = crs
+        self.auto_interval = auto_interval
+        self.manual_interval = manual_interval
+        self.add_labels = add_labels
+        self.major_nth = major_nth
+        self.major_offset = major_offset
+        # Set in run()
+        self.Z = None
+        self.variance = None
+        self.contour_interval = manual_interval
+        self.raster_path = None
+        self.contour_path = None
+        self.cv_result = None
+        self.error_msg = None
+
+    def run(self):
+        try:
+            ny, nx = len(self.grid_y), len(self.grid_x)
+            self.setProgress(5)
+
+            Z, variance = ordinary_kriging(
+                self.coords, self.values, self.grid_x, self.grid_y,
+                self.vario_func, search_params=self.search_params,
+            )
+            if self.isCanceled():
+                return False
+            self.setProgress(50)
+
+            if self.nodata_hull and len(self.coords) >= 3:
+                from scipy.spatial import Delaunay
+                hull = Delaunay(self.coords)
+                gx_m, gy_m = np.meshgrid(self.grid_x, self.grid_y)
+                outside = hull.find_simplex(
+                    np.column_stack([gx_m.ravel(), gy_m.ravel()])
+                ) < 0
+                mask = outside.reshape(ny, nx)
+                Z[mask] = np.nan
+                variance[mask] = np.nan
+
+            z_valid = Z[np.isfinite(Z)]
+            if len(z_valid) == 0:
+                self.error_msg = "__empty_grid__"
+                return False
+
+            self.Z = Z
+            self.variance = variance
+            if self.auto_interval:
+                self.contour_interval = nice_contour_interval(z_valid.max() - z_valid.min())
+            self.setProgress(60)
+
+            tmp_dir = tempfile.mkdtemp(prefix="piezo_kriging_")
+            self._plugin._tmp_dirs.append(tmp_dir)
+
+            self.raster_path = os.path.join(tmp_dir, "piezo_kriging.tif")
+            PiezoKrigingPlugin._write_raster(
+                self.raster_path,
+                {"grid_x": self.grid_x, "grid_y": self.grid_y, "Z": Z},
+                self.epsg,
+            )
+            self.setProgress(70)
+
+            self.contour_path = os.path.join(tmp_dir, "isopiezes.gpkg")
+            PiezoKrigingPlugin._generate_contours(
+                self.raster_path, self.contour_path, self.contour_interval
+            )
+            self.setProgress(80)
+
+            if self.isCanceled():
+                return False
+
+            self.cv_result = cross_validate_loo(
+                self.coords, self.values, self.vario_func, self.search_params
+            )
+            self.setProgress(100)
+            return True
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.error_msg = str(e)
+            return False
+
+    def finished(self, result):
+        plugin = self._plugin
+        dlg = self._dlg
+        dlg.btn_run.setEnabled(True)
+        dlg.btn_crossval.setEnabled(True)
+        plugin._active_task = None
+
+        if not result:
+            dlg.progress.setValue(0)
+            if self.error_msg == "__empty_grid__":
+                QMessageBox.warning(
+                    dlg, "Kriging vide",
+                    "Aucun noeud de grille ne contient de données.\n"
+                    "Vérifiez les paramètres de voisinage."
+                )
+            elif self.error_msg:
+                QMessageBox.critical(dlg, "Erreur",
+                                     f"Erreur lors du kriging :\n\n{self.error_msg}")
+            return
+
+        if self.auto_interval:
+            dlg.contour_interval_spin.setValue(self.contour_interval)
+
+        plugin._remove_layers_by_name("Kriging")
+        rlayer = QgsRasterLayer(self.raster_path, "Kriging")
+        if rlayer.isValid():
+            rlayer.setCrs(self.crs)
+            QgsProject.instance().addMapLayer(rlayer)
+            plugin._style_raster(rlayer)
+
+        plugin._flow_cache = {
+            "Z": self.Z, "grid_x": self.grid_x, "grid_y": self.grid_y, "crs": self.crs
+        }
+        dlg.btn_refresh_flow.setEnabled(True)
+        if dlg.get_flow_params()["enabled"]:
+            plugin._refresh_flow_vectors()
+
+        plugin._remove_layers_by_name("Isopièzes")
+        vlayer_contour = QgsVectorLayer(self.contour_path, "Isopièzes", "ogr")
+        if vlayer_contour.isValid():
+            vlayer_contour.setCrs(self.crs)
+            QgsProject.instance().addMapLayer(vlayer_contour)
+            plugin._style_contours(vlayer_contour, self.add_labels, self.contour_interval,
+                                   self.major_nth, self.major_offset)
+
+        plugin._remove_layers_by_name("Ouvrages")
+        plugin._create_points_layer(self.names, self.coords, self.values, self.crs)
+
+        if self.cv_result is not None:
+            try:
+                dlg.show_crossval_results(self.cv_result, self.names)
+                dlg.plot_variogram(self.lag_centers, self.gamma_exp, self.vario_func,
+                                   self.vario_params, n_pairs=self.n_pairs,
+                                   model_name=self.model_name)
+            except Exception as _cv_err:
+                import traceback as _tb
+                print(f"[EZPiezo] Cross-validation display failed: {_cv_err}")
+                _tb.print_exc()
+
+        vp = self.vario_params
+        if vp.get("slope") is not None:
+            vario_str = f"Nugget={vp['nugget']:.6f}  Pente={vp['slope']:.8f}"
+        else:
+            vario_str = (f"Nugget={vp['nugget']:.4f}  "
+                         f"Sill={vp['sill']:.4f}  "
+                         f"Range={vp['range']:.2f}")
+
+        flow_line = "  - Flux\n" if dlg.get_flow_params()["enabled"] else ""
+        QMessageBox.information(
+            dlg, "Succès",
+            f"Kriging terminé !\n\n"
+            f"• Grille : {len(self.grid_x)}×{len(self.grid_y)}\n"
+            f"• Modèle : {self.model_name}\n"
+            f"• {vario_str}\n"
+            f"• Intervalle isopièzes : {self.contour_interval:.4g} m\n"
+            f"• {len(self.values)} ouvrages interpolés\n\n"
+            f"Couches créées :\n"
+            f"  - Kriging\n"
+            f"{flow_line}"
+            f"  - Isopièzes\n"
+            f"  - Ouvrages"
+        )
+        dlg.progress.setValue(100)
+
+
+class _CrossvalTask(QgsTask):
+    """
+    Background task: LOO cross-validation only (no kriging grid).
+    run()      → worker thread
+    finished() → main thread
+    """
+
+    def __init__(self, plugin, dlg, names, coords, values,
+                 vario_func, vario_params, lag_centers, gamma_exp, n_pairs, model_name,
+                 search_params):
+        super().__init__("EZ Piezo — Validation croisée", QgsTask.CanCancel)
+        self._plugin = plugin
+        self._dlg = dlg
+        self.names = names
+        self.coords = coords
+        self.values = values
+        self.vario_func = vario_func
+        self.vario_params = vario_params
+        self.lag_centers = lag_centers
+        self.gamma_exp = gamma_exp
+        self.n_pairs = n_pairs
+        self.model_name = model_name
+        self.search_params = search_params
+        self.cv_result = None
+        self.error_msg = None
+
+    def run(self):
+        try:
+            self.setProgress(5)
+            self.cv_result = cross_validate_loo(
+                self.coords, self.values, self.vario_func, self.search_params
+            )
+            self.setProgress(100)
+            return not self.isCanceled()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.error_msg = str(e)
+            return False
+
+    def finished(self, result):
+        plugin = self._plugin
+        dlg = self._dlg
+        dlg.btn_run.setEnabled(True)
+        dlg.btn_crossval.setEnabled(True)
+        plugin._active_task = None
+        dlg.progress.setValue(0)
+
+        if not result:
+            if self.error_msg:
+                QMessageBox.critical(
+                    dlg, "Erreur",
+                    f"Erreur lors de la validation croisée :\n\n{self.error_msg}"
+                )
+            return
+
+        dlg.show_crossval_results(self.cv_result, self.names)
+        dlg.plot_variogram(
+            self.lag_centers, self.gamma_exp, self.vario_func, self.vario_params,
+            n_pairs=self.n_pairs, model_name=self.model_name,
+        )
+
+
 class PiezoKrigingPlugin:
     """QGIS Plugin — PiezoKriging."""
 
@@ -43,7 +304,9 @@ class PiezoKrigingPlugin:
         self.plugin_dir = os.path.dirname(__file__)
         self.action = None
         self.dlg = None
-        self._flow_cache = None  # {Z, grid_x, grid_y, crs} — updated after each kriging run
+        self._flow_cache = None
+        self._tmp_dirs = []
+        self._active_task = None
 
     # ──────────────────────── Plugin lifecycle ──────────────────────
 
@@ -57,14 +320,29 @@ class PiezoKrigingPlugin:
         self.action.triggered.connect(self.run)
         self.iface.addToolBarIcon(self.action)
         self.iface.addPluginToMenu("&EZ Piezo", self.action)
+        QgsProject.instance().cleared.connect(self._cleanup_tmp)
 
     def unload(self):
+        if self._active_task is not None:
+            self._active_task.cancel()
+        QgsProject.instance().cleared.disconnect(self._cleanup_tmp)
+        self._cleanup_tmp()
         self.iface.removePluginMenu("&EZ Piezo", self.action)
         self.iface.removeToolBarIcon(self.action)
+
+    def _cleanup_tmp(self):
+        """Delete all temporary directories created by kriging runs."""
+        for d in self._tmp_dirs:
+            shutil.rmtree(d, ignore_errors=True)
+        self._tmp_dirs.clear()
 
     # ──────────────────────── Main entry ────────────────────────────
 
     def run(self):
+        if self.dlg is not None and self.dlg.isVisible():
+            self.dlg.raise_()
+            self.dlg.activateWindow()
+            return
         self.dlg = PiezoKrigingDialog(self.iface.mainWindow())
         self.dlg.btn_run.clicked.connect(self._execute_kriging)
         self.dlg.btn_crossval.clicked.connect(self._execute_crossval)
@@ -144,9 +422,24 @@ class PiezoKrigingPlugin:
             )
             return
 
-        epsg = int(dlg.epsg_edit.text().strip() or "2154")
-        _crs_check = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
-        if _crs_check.isValid() and _crs_check.mapUnits() == QgsUnitTypes.DistanceDegrees:
+        # ── EPSG validation (issues 2 & 3) ──
+        epsg_str = dlg.epsg_edit.text().strip() or "2154"
+        try:
+            epsg = int(epsg_str)
+        except ValueError:
+            QMessageBox.critical(dlg, "EPSG invalide",
+                                 f"'{epsg_str}' n'est pas un entier valide.")
+            return
+
+        crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
+        if not crs.isValid():
+            QMessageBox.critical(
+                dlg, "EPSG invalide",
+                f"EPSG:{epsg} n'est pas reconnu par QGIS.\n"
+                "Utilisez un code projeté valide (ex. EPSG:2154 Lambert 93, EPSG:32631 UTM 31N)."
+            )
+            return
+        if crs.mapUnits() == QgsUnitTypes.DistanceDegrees:
             QMessageBox.critical(
                 dlg, "Système géographique non supporté",
                 f"EPSG:{epsg} exprime les coordonnées en degrés décimaux.\n\n"
@@ -168,11 +461,8 @@ class PiezoKrigingPlugin:
             return
 
         dlg.progress.setValue(20)
-
-        # Plot variogram immediately
-        dlg.plot_variogram(
-            lag_centers, gamma_exp, vario_func, vario_params,
-            n_pairs=n_pairs, model_name=model_name)
+        dlg.plot_variogram(lag_centers, gamma_exp, vario_func, vario_params,
+                           n_pairs=n_pairs, model_name=model_name)
         dlg.tabs.setCurrentIndex(2)
         dlg.progress.setValue(30)
 
@@ -180,134 +470,31 @@ class PiezoKrigingPlugin:
         search_params = dlg.get_search_params()
         auto_interval, manual_interval, add_labels, major_nth, major_offset = dlg.get_contour_params()
 
-        try:
-            # Build grid
-            xmin, ymin = coords.min(axis=0)
-            xmax, ymax = coords.max(axis=0)
-            dx = (xmax - xmin) * pad_pct / 100.0
-            dy = (ymax - ymin) * pad_pct / 100.0
-            grid_x = np.linspace(xmin - dx, xmax + dx, nx)
-            grid_y = np.linspace(ymin - dy, ymax + dy, ny)
+        xmin, ymin = coords.min(axis=0)
+        xmax, ymax = coords.max(axis=0)
+        dx = (xmax - xmin) * pad_pct / 100.0
+        dy = (ymax - ymin) * pad_pct / 100.0
+        grid_x = np.linspace(xmin - dx, xmax + dx, nx)
+        grid_y = np.linspace(ymin - dy, ymax + dy, ny)
 
-            dlg.progress.setValue(40)
-
-            Z, variance = ordinary_kriging(
-                coords, values, grid_x, grid_y, vario_func,
-                search_params=search_params,
-            )
-
-            dlg.progress.setValue(60)
-
-            # NoData outside convex hull
-            if nodata_hull and len(coords) >= 3:
-                from scipy.spatial import Delaunay
-                hull = Delaunay(coords)
-                gx_m, gy_m = np.meshgrid(grid_x, grid_y)
-                outside = hull.find_simplex(
-                    np.column_stack([gx_m.ravel(), gy_m.ravel()])
-                ) < 0
-                mask = outside.reshape(ny, nx)
-                Z[mask] = np.nan
-                variance[mask] = np.nan
-
-            # Auto contour interval
-            z_valid = Z[np.isfinite(Z)]
-            if len(z_valid) == 0:
-                QMessageBox.warning(dlg, "Kriging vide",
-                                    "Aucun noeud de grille ne contient de données. "
-                                    "Vérifiez les paramètres de voisinage.")
-                dlg.progress.setValue(0)
-                return
-
-            if auto_interval:
-                contour_interval = nice_contour_interval(z_valid.max() - z_valid.min())
-                dlg.contour_interval_spin.setValue(contour_interval)
-            else:
-                contour_interval = manual_interval
-
-            dlg.progress.setValue(65)
-
-            # ── Output layers ──
-            tmp_dir = tempfile.mkdtemp(prefix="piezo_kriging_")
-            crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
-
-            result = {"grid_x": grid_x, "grid_y": grid_y, "Z": Z}
-
-            raster_path = os.path.join(tmp_dir, "piezo_kriging.tif")
-            self._write_raster(raster_path, result, epsg)
-
-            dlg.progress.setValue(75)
-
-            rlayer = QgsRasterLayer(raster_path, "Kriging")
-            if rlayer.isValid():
-                rlayer.setCrs(crs)
-                QgsProject.instance().addMapLayer(rlayer)
-                self._style_raster(rlayer)
-
-            # Flow vectors - cache grid for dynamic refresh without re-kriging
-            self._flow_cache = {
-                "Z": Z, "grid_x": grid_x, "grid_y": grid_y, "crs": crs
-            }
-            dlg.btn_refresh_flow.setEnabled(True)
-            if dlg.get_flow_params()["enabled"]:
-                self._refresh_flow_vectors()
-
-            dlg.progress.setValue(83)
-
-            contour_path = os.path.join(tmp_dir, "isopiezes.gpkg")
-            self._generate_contours(raster_path, contour_path, contour_interval)
-
-            vlayer_contour = QgsVectorLayer(contour_path, "Isopièzes", "ogr")
-            if vlayer_contour.isValid():
-                vlayer_contour.setCrs(crs)
-                QgsProject.instance().addMapLayer(vlayer_contour)
-                self._style_contours(vlayer_contour, add_labels, contour_interval, major_nth, major_offset)
-
-            dlg.progress.setValue(92)
-            self._create_points_layer(names, coords, values, crs)
-            dlg.progress.setValue(100)
-
-            # Auto cross-validation
-            try:
-                cv = cross_validate_loo(coords, values, vario_func, search_params)
-                dlg.show_crossval_results(cv, names)
-                dlg.plot_variogram(lag_centers, gamma_exp, vario_func, vario_params,
-                                   n_pairs=n_pairs, model_name=model_name)
-            except Exception as _cv_err:
-                import traceback as _tb
-                print(f"[EZPiezo] Automatic cross-validation failed: {_cv_err}")
-                _tb.print_exc()
-
-            # Success message
-            if vario_params.get("slope") is not None:
-                vario_str = (f"Nugget={vario_params['nugget']:.6f}  "
-                             f"Pente={vario_params['slope']:.8f}")
-            else:
-                vario_str = (f"Nugget={vario_params['nugget']:.4f}  "
-                             f"Sill={vario_params['sill']:.4f}  "
-                             f"Range={vario_params['range']:.2f}")
-
-            flow_line = "  - Flux\n" if dlg.get_flow_params()["enabled"] else ""
-            QMessageBox.information(
-                dlg, "Succès",
-                f"Kriging terminé !\n\n"
-                f"• Grille : {nx}×{ny}\n"
-                f"• Modèle : {model_name}\n"
-                f"• {vario_str}\n"
-                f"• Intervalle isopièzes : {contour_interval:.4g} m\n"
-                f"• {len(values)} ouvrages interpolés\n\n"
-                f"Couches créées :\n"
-                f"  - Kriging\n"
-                f"{flow_line}"
-                f"  - Isopièzes\n"
-                f"  - Ouvrages"
-            )
-
-        except Exception as e:
-            QMessageBox.critical(dlg, "Erreur", f"Erreur lors du kriging :\n\n{e}")
-            import traceback
-            traceback.print_exc()
-            dlg.progress.setValue(0)
+        # ── Launch background task ──
+        dlg.btn_run.setEnabled(False)
+        dlg.btn_crossval.setEnabled(False)
+        task = _KrigingTask(
+            plugin=self, dlg=dlg,
+            names=names, coords=coords, values=values,
+            vario_func=vario_func, vario_params=vario_params,
+            lag_centers=lag_centers, gamma_exp=gamma_exp,
+            n_pairs=n_pairs, model_name=model_name,
+            grid_x=grid_x, grid_y=grid_y,
+            nodata_hull=nodata_hull, search_params=search_params,
+            epsg=epsg, crs=crs,
+            auto_interval=auto_interval, manual_interval=manual_interval,
+            add_labels=add_labels, major_nth=major_nth, major_offset=major_offset,
+        )
+        task.progressChanged.connect(lambda p: dlg.progress.setValue(int(p)))
+        self._active_task = task
+        QgsApplication.taskManager().addTask(task)
 
     # ──────────────────────── Cross-validation ──────────────────────
 
@@ -336,24 +523,33 @@ class PiezoKrigingPlugin:
         try:
             vario_func, vario_params, lag_centers, gamma_exp, n_pairs, model_name = \
                 self._build_variogram(dlg, coords, values)
-
-            dlg.plot_variogram(
-                lag_centers, gamma_exp, vario_func, vario_params,
-                n_pairs=n_pairs, model_name=model_name)
-
-            search_params = dlg.get_search_params()
-            cv = cross_validate_loo(coords, values, vario_func, search_params)
-            dlg.show_crossval_results(cv, names)
-
-            # Update variogram tab label with LOO stats
-            dlg.plot_variogram(
-                lag_centers, gamma_exp, vario_func, vario_params,
-                n_pairs=n_pairs, model_name=model_name)
-
         except Exception as e:
-            QMessageBox.critical(dlg, "Erreur", f"Erreur lors de la validation croisée :\n\n{e}")
-            import traceback
-            traceback.print_exc()
+            QMessageBox.critical(dlg, "Erreur variogramme", str(e))
+            return
+
+        search_params = dlg.get_search_params()
+
+        dlg.btn_run.setEnabled(False)
+        dlg.btn_crossval.setEnabled(False)
+        task = _CrossvalTask(
+            plugin=self, dlg=dlg,
+            names=names, coords=coords, values=values,
+            vario_func=vario_func, vario_params=vario_params,
+            lag_centers=lag_centers, gamma_exp=gamma_exp,
+            n_pairs=n_pairs, model_name=model_name,
+            search_params=search_params,
+        )
+        task.progressChanged.connect(lambda p: dlg.progress.setValue(int(p)))
+        self._active_task = task
+        QgsApplication.taskManager().addTask(task)
+
+    # ──────────────────────── Layer helpers ─────────────────────────
+
+    @staticmethod
+    def _remove_layers_by_name(name):
+        """Remove all map layers whose name matches exactly."""
+        for lyr in QgsProject.instance().mapLayersByName(name):
+            QgsProject.instance().removeMapLayer(lyr.id())
 
     # ──────────────────────── Raster output ─────────────────────────
 

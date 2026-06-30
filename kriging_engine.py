@@ -178,6 +178,7 @@ def fit_variogram(lag_centers, gamma, model_name="spherical", n_pairs=None,
         slope_est = (gamma.max() - gamma.min()) / (h_range if h_range > 0 else 1.0)
         slope_bound_hi = sill_est * 10 / (lag_centers.max() or 1.0)
 
+        fit_failed = False
         if force_nugget_zero:
             def _linear_zero_nugget(h, slope):
                 return linear(np.asarray(h), 0.0, slope)
@@ -190,6 +191,7 @@ def fit_variogram(lag_centers, gamma, model_name="spherical", n_pairs=None,
                 )
             except RuntimeError:
                 popt = [max(slope_est, 1e-10)]
+                fit_failed = True
             nugget, slope = 0.0, float(popt[0])
         else:
             try:
@@ -201,9 +203,11 @@ def fit_variogram(lag_centers, gamma, model_name="spherical", n_pairs=None,
                 )
             except RuntimeError:
                 popt = [nugget_est, max(slope_est, 1e-10)]
+                fit_failed = True
             nugget, slope = float(popt[0]), float(popt[1])
 
-        params = {"nugget": nugget, "sill": None, "range": None, "slope": slope}
+        params = {"nugget": nugget, "sill": None, "range": None, "slope": slope,
+                  "fit_failed": fit_failed}
 
         def fitted(h):
             return linear(np.asarray(h, dtype=float), nugget, slope)
@@ -223,15 +227,18 @@ def fit_variogram(lag_centers, gamma, model_name="spherical", n_pairs=None,
         [0.0, 1e-10, 1e-6],
         [sill_est * 2, sill_est * 5, lag_centers.max() * 2],
     )
+    fit_failed = False
     try:
         popt, _ = curve_fit(_model_psill, lag_centers, gamma, p0=p0, bounds=bounds,
                             sigma=sigma, absolute_sigma=False, maxfev=5000)
     except RuntimeError:
         popt = p0
+        fit_failed = True
 
     nugget, psill, range_ = float(popt[0]), float(popt[1]), float(popt[2])
     sill = nugget + psill
-    params = {"nugget": nugget, "sill": sill, "range": range_, "slope": None}
+    params = {"nugget": nugget, "sill": sill, "range": range_, "slope": None,
+              "fit_failed": fit_failed}
 
     def fitted(h):
         return model_func(np.asarray(h, dtype=float), nugget, sill, range_)
