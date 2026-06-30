@@ -693,6 +693,9 @@ class PiezoKrigingDialog(QDialog):
         layout.addStretch()
         self.tabs.addTab(tab, "")
 
+        # Sync visibility to the default model selection (signal doesn't fire on load)
+        self._on_model_changed(self.model_combo.currentText())
+
     # ── Tab 3: Variogramme ────────────────────────────────────────────
 
     def _build_tab_vario(self):
