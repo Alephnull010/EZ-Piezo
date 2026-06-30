@@ -38,7 +38,7 @@ _STRINGS = {
         'tab_params': "2 — Paramètres",
         'tab_vario': "3 — Variogramme",
         'tab_crossval': "4 — Validation croisée",
-        'btn_run': "▶  Lancer le Kriging",
+        'btn_run': "▶  Lancement",
         'lang_btn': "🇬🇧",
         # Tab 1
         'csv_placeholder': "Chemin vers fichier CSV …",
@@ -140,7 +140,7 @@ _STRINGS = {
         'tab_params': "2 — Parameters",
         'tab_vario': "3 — Variogram",
         'tab_crossval': "4 — Cross-validation",
-        'btn_run': "▶  Run Kriging",
+        'btn_run': "▶  Run",
         'lang_btn': "🇫🇷",
         # Tab 1
         'csv_placeholder': "Path to CSV file …",
@@ -291,6 +291,10 @@ class PiezoKrigingDialog(QDialog):
         self._build_tab_params()
         self._build_tab_vario()
         self._build_tab_crossval()
+
+        # Tabs 3 & 4 are only meaningful after a kriging run
+        self.tabs.setTabEnabled(2, False)
+        self.tabs.setTabEnabled(3, False)
 
         self.progress = QProgressBar()
         self.progress.setValue(0)

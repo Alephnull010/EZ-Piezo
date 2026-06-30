@@ -168,6 +168,9 @@ class _KrigingTask(QgsTask):
                                      f"Erreur lors du kriging :\n\n{self.error_msg}")
             return
 
+        dlg.tabs.setTabEnabled(2, True)
+        dlg.tabs.setTabEnabled(3, True)
+
         if self.auto_interval:
             dlg.contour_interval_spin.setValue(self.contour_interval)
 
@@ -289,6 +292,8 @@ class _CrossvalTask(QgsTask):
                 )
             return
 
+        dlg.tabs.setTabEnabled(2, True)
+        dlg.tabs.setTabEnabled(3, True)
         dlg.show_crossval_results(self.cv_result, self.names)
         dlg.plot_variogram(
             self.lag_centers, self.gamma_exp, self.vario_func, self.vario_params,
