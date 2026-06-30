@@ -32,12 +32,12 @@ def _flag_icon(flag):
 
 _STRINGS = {
     'fr': {
-        'window_title': "EZ Piezo — Carte piézométrique par Kriging",
+        'window_title': "EZ Piezo - Carte piézométrique par Kriging",
         'subtitle': "Interpolation piézométrique par Ordinary Kriging",
-        'tab_data': "1 — Données",
-        'tab_params': "2 — Paramètres",
-        'tab_vario': "3 — Variogramme",
-        'tab_crossval': "4 — Validation croisée",
+        'tab_data': "1. Données",
+        'tab_params': "2. Paramètres",
+        'tab_vario': "3. Variogramme",
+        'tab_crossval': "4. Validation croisée",
         'btn_run': "▶  Lancement",
         'lang_btn': "🇬🇧",
         # Tab 1
@@ -134,12 +134,12 @@ _STRINGS = {
         'import_success': "{n} ouvrages importés.",
     },
     'en': {
-        'window_title': "EZ Piezo — Piezometric Map by Kriging",
+        'window_title': "EZ Piezo - Piezometric Map by Kriging",
         'subtitle': "Piezometric interpolation by Ordinary Kriging",
-        'tab_data': "1 — Data",
-        'tab_params': "2 — Parameters",
-        'tab_vario': "3 — Variogram",
-        'tab_crossval': "4 — Cross-validation",
+        'tab_data': "1. Data",
+        'tab_params': "2. Parameters",
+        'tab_vario': "3. Variogram",
+        'tab_crossval': "4. Cross-validation",
         'btn_run': "▶  Run",
         'lang_btn': "🇫🇷",
         # Tab 1

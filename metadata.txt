@@ -2,7 +2,7 @@
 name=EZ Piezo
 qgisMinimumVersion=3.16
 description=Generate piezometric maps (groundwater contour lines) by Ordinary Kriging from CSV well data.
-version=1.3.0
+version=1.4.0
 author=Hugo LEBEL
 email=h.lebel@hlsoftware.fr
 about=A QGIS plugin for generating piezometric maps (isopiezes) through Ordinary Kriging interpolation. Load your data from a CSV file or enter it manually, configure the variogram, and get an interpolated raster and vector contour lines directly in QGIS. Includes cross-validation (LOO), flow vectors, and major/minor contour styling.
@@ -15,7 +15,8 @@ icon=icons/icon.png
 experimental=False
 deprecated=False
 license=GPL-2
-changelog=1.3.0 - FR/EN language toggle button, all UI strings translated
+changelog=1.4.0 - Kriging and LOO cross-validation run in background thread (no UI freeze); EPSG validation hardened; CSV encoding fallback (UTF-8/cp1252/latin-1); layers replaced instead of accumulated on re-run; temp files cleaned up on unload; variogram and cross-validation tabs disabled until first run; various UI fixes
+	1.3.0 - FR/EN language toggle button, all UI strings translated
 	1.2.0 - Swapped cross-validation axes, flow vectors black, arrow length reduced, auto CSV load, ouvrage symbology with labels
 	1.1.0 - Automatic cross-validation, flow vectors, major contour offset, label styling
 	1.0.0 - Initial release
